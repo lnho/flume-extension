@@ -65,7 +65,7 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 			fileChannel.setName("EnhancedFileChannel_" + index);
 
-			Context ctx = new Context(context.getParameters());
+			Context ctx = new Context();
 
 			ctx.put(FileChannelConfiguration.CHECKPOINT_DIR,
 					new File(checkpointDir, String.valueOf(index)).getAbsolutePath());
