@@ -55,15 +55,11 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private Properties kafkaProps;
 
-	private boolean kafkaAutoCommitEnabled;
-
 	private String hostname;
 
 	private ConsumerConnector consumer;
 
 	private ExecutorService executor = null;
-
-	private boolean stoped = false;
 
 	@Override
 	public void configure(Context context) {
@@ -82,7 +78,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		kafkaProps = KafkaSourceUtil.getKafkaProperties(context);
 
-		kafkaAutoCommitEnabled = Boolean.parseBoolean(kafkaProps.getProperty(KafkaSourceConstants.AUTO_COMMIT_ENABLED));
+		kafkaProps.put(KafkaSourceConstants.AUTO_COMMIT_ENABLED, "true");
 
 		try {
 			hostname = InetAddress.getLocalHost().getHostName();
@@ -106,12 +102,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 					if (LOGGER.isDebugEnabled()) {
 						LOGGER.debug(getName() + " write " + events.size() + " events to channel");
-					}
-
-					LOGGER.warn((!kafkaAutoCommitEnabled && !stoped) + "");
-
-					if (!kafkaAutoCommitEnabled && !stoped) {
-						consumer.commitOffsets();
 					}
 
 					events.clear();
@@ -171,8 +161,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		LOGGER.info("Starting {}...", this);
 
 		try {
-			stoped = false;
-
 			consumer = KafkaSourceUtil.getConsumer(kafkaProps);
 
 			TopicFilter topicFilter = new Whitelist(topics);
@@ -195,8 +183,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	@Override
 	public synchronized void stop() {
-		stoped = true;
-
 		consumer.shutdown();
 
 		executor.shutdown();
