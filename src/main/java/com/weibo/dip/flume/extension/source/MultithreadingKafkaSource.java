@@ -160,6 +160,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 			}
 
 			flush(events);
+
+			LOGGER.info(Thread.currentThread().getName() + " stoped");
 		}
 
 	}
