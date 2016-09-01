@@ -125,23 +125,23 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				Map<String, String> headers = null;
 
 				while (iterator.hasNext()) {
-					if (events.size() < batchUpperLimit) {
-						MessageAndMetadata<byte[], byte[]> messageAndMetadata = iterator.next();
+					MessageAndMetadata<byte[], byte[]> messageAndMetadata = iterator.next();
 
-						kafkaMessage = messageAndMetadata.message();
+					kafkaMessage = messageAndMetadata.message();
 
-						headers = new HashMap<String, String>();
+					headers = new HashMap<String, String>();
 
-						headers.put(KafkaSourceConstants.TOPIC, messageAndMetadata.topic());
-						headers.put(KafkaSourceConstants.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
-						headers.put("hostname", hostname);
+					headers.put(KafkaSourceConstants.TOPIC, messageAndMetadata.topic());
+					headers.put(KafkaSourceConstants.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+					headers.put("hostname", hostname);
 
-						if (LOGGER.isDebugEnabled()) {
-							LOGGER.debug("Message: " + new String(kafkaMessage) + ", Headers: " + headers);
-						}
+					if (LOGGER.isDebugEnabled()) {
+						LOGGER.debug("Message: " + new String(kafkaMessage) + ", Headers: " + headers);
+					}
 
-						events.add(EventBuilder.withBody(kafkaMessage, headers));
-					} else {
+					events.add(EventBuilder.withBody(kafkaMessage, headers));
+
+					if (events.size() >= batchUpperLimit || System.currentTimeMillis() > batchEndTime) {
 						flush(events);
 
 						batchEndTime = System.currentTimeMillis() + timeUpperLimit;
@@ -150,7 +150,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$5");
 
-				// flush(events);
+				flush(events);
 			} catch (Throwable e) {
 				LOGGER.error("KafkaConsumer error: " + ExceptionUtils.getFullStackTrace(e));
 			}
