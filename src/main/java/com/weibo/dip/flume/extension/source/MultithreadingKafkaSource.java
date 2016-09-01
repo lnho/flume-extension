@@ -22,7 +22,6 @@ import org.apache.flume.Event;
 import org.apache.flume.EventDrivenSource;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.event.EventBuilder;
-import org.apache.flume.instrumentation.kafka.KafkaSourceCounter;
 import org.apache.flume.source.AbstractSource;
 import org.apache.flume.source.kafka.KafkaSourceConstants;
 import org.apache.flume.source.kafka.KafkaSourceUtil;
@@ -64,8 +63,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private ExecutorService executor = Executors.newCachedThreadPool();
 
-	private KafkaSourceCounter counter;
-
 	@Override
 	public void configure(Context context) {
 		topics = context.getString("topics").replaceAll(",", "|");
@@ -89,10 +86,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 			hostname = InetAddress.getLocalHost().getHostName();
 		} catch (UnknownHostException e) {
 			throw new RuntimeException(e);
-		}
-
-		if (counter == null) {
-			counter = new KafkaSourceCounter(getName());
 		}
 	}
 
@@ -177,8 +170,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 			List<KafkaStream<byte[], byte[]>> streams = consumer.createMessageStreamsByFilter(topicFilter, threads);
 
-			counter.start();
-
 			for (KafkaStream<byte[], byte[]> stream : streams) {
 				executor.submit(new KafkaConsumer(stream));
 			}
@@ -206,11 +197,9 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 			}
 		}
 
-		counter.stop();
-
 		super.stop();
 
-		LOGGER.info("Kafka Source {} stopped. Metrics: {}", getName(), counter);
+		LOGGER.info("Kafka Source {} stopped.", getName());
 	}
 
 }
