@@ -61,7 +61,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private String hostname;
 
-	private ExecutorService executor = Executors.newCachedThreadPool();
+	private ExecutorService executor = null;
 
 	@Override
 	public void configure(Context context) {
@@ -172,6 +172,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 			List<KafkaStream<byte[], byte[]>> streams = consumer.createMessageStreamsByFilter(topicFilter, threads);
 
+			executor = Executors.newCachedThreadPool();
+
 			for (KafkaStream<byte[], byte[]> stream : streams) {
 				executor.submit(new KafkaConsumer(stream));
 			}
@@ -186,13 +188,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	@Override
 	public synchronized void stop() {
-		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-
-		if (consumer != null) {
-			consumer.shutdown();
-		}
-
-		LOGGER.info("#####################################3");
+		consumer.shutdown();
 
 		executor.shutdown();
 
@@ -202,8 +198,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 			} catch (InterruptedException e) {
 			}
 		}
-
-		LOGGER.info("#####################################4");
 
 		super.stop();
 

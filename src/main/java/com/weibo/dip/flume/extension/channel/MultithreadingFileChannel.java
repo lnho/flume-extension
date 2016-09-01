@@ -28,7 +28,7 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	private int channels;
 
-	private List<PublicTransactionFileChannel> fileChannels = new ArrayList<>();
+	private List<PublicTransactionFileChannel> fileChannels = null;
 
 	@Override
 	public void configure(Context context) {
@@ -59,6 +59,8 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 		if (!dataDir.exists()) {
 			dataDir.mkdirs();
 		}
+
+		fileChannels = new ArrayList<>();
 
 		for (int index = 0; index < channels; index++) {
 			PublicTransactionFileChannel fileChannel = new PublicTransactionFileChannel();
@@ -95,10 +97,7 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	@Override
 	public synchronized void stop() {
-		LOGGER.info("channels size: " + fileChannels.size());
-		
 		for (FileChannel fileChannel : fileChannels) {
-			LOGGER.info(Thread.currentThread().getName() + " stop fileChannel" + "%%%%%%%%%%%%%%");
 			fileChannel.stop();
 		}
 
