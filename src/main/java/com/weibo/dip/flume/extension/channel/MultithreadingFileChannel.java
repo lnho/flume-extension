@@ -28,6 +28,10 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	private int channels;
 
+	private String checkpointDirStr;
+
+	private String dataDirStr;
+
 	private List<PublicTransactionFileChannel> fileChannels = null;
 
 	@Override
@@ -43,16 +47,21 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 		Preconditions.checkState(StringUtils.isNotEmpty(checkpointDirStr),
 				"checkpointDirStr's value must not be empty");
 
+		String dataDirStr = context.getString("dataDir");
+		LOGGER.info("dataDir: {}", dataDirStr);
+
+		Preconditions.checkState(StringUtils.isNotEmpty(dataDirStr), "dataDirStr's value must not be empty");
+
+		LOGGER.info("MultipleFileChannel configure success");
+	}
+
+	@Override
+	public synchronized void start() {
 		File checkpointDir = new File(checkpointDirStr);
 
 		if (!checkpointDir.exists()) {
 			checkpointDir.mkdirs();
 		}
-
-		String dataDirStr = context.getString("dataDir");
-		LOGGER.info("dataDir: {}", dataDirStr);
-
-		Preconditions.checkState(StringUtils.isNotEmpty(dataDirStr), "dataDirStr's value must not be empty");
 
 		File dataDir = new File(dataDirStr);
 
@@ -78,11 +87,6 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 			fileChannels.add(fileChannel);
 		}
 
-		LOGGER.info("MultipleFileChannel configure success");
-	}
-
-	@Override
-	public synchronized void start() {
 		for (FileChannel fileChannel : fileChannels) {
 			fileChannel.start();
 		}
