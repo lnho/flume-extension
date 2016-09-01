@@ -99,17 +99,21 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		private void flush(List<Event> events) {
 			if (CollectionUtils.isNotEmpty(events)) {
-				getChannelProcessor().processEventBatch(events);
+				try {
+					getChannelProcessor().processEventBatch(events);
 
-				if (LOGGER.isDebugEnabled()) {
-					LOGGER.debug(getName() + " write " + events.size() + " events to channel");
+					if (LOGGER.isDebugEnabled()) {
+						LOGGER.debug(getName() + " write " + events.size() + " events to channel");
+					}
+
+					if (!kafkaAutoCommitEnabled) {
+						consumer.commitOffsets();
+					}
+
+					events.clear();
+				} catch (Exception e) {
+					LOGGER.error("KafkaConsumer flush error: " + ExceptionUtils.getFullStackTrace(e));
 				}
-
-				if (!kafkaAutoCommitEnabled) {
-					consumer.commitOffsets();
-				}
-
-				events.clear();
 			}
 		}
 
@@ -150,9 +154,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					}
 				}
 
-				LOGGER.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-
-				// flush(events);
+				flush(events);
 			} catch (Throwable e) {
 				LOGGER.error("KafkaConsumer error: " + ExceptionUtils.getFullStackTrace(e));
 			}
