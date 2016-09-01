@@ -123,10 +123,10 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				byte[] kafkaMessage = null;
 
 				Map<String, String> headers = null;
-				
-				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4");
 
 				while (iterator.hasNext()) {
+					LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4");
+
 					if (events.size() < batchUpperLimit && System.currentTimeMillis() < batchEndTime) {
 						MessageAndMetadata<byte[], byte[]> messageAndMetadata = iterator.next();
 
@@ -149,7 +149,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 						batchEndTime = System.currentTimeMillis() + timeUpperLimit;
 					}
 				}
-				
+
 				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$5");
 
 				// flush(events);
@@ -188,11 +188,11 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 	@Override
 	public synchronized void stop() {
 		consumer.shutdown();
-		
+
 		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$");
 
 		executor.shutdown();
-		
+
 		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$2");
 
 		while (!executor.isTerminated()) {
@@ -206,7 +206,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		super.stop();
 
 		LOGGER.info("Kafka Source {} stopped.", getName());
-		
+
 		LOGGER.info("#################################################################");
 	}
 
