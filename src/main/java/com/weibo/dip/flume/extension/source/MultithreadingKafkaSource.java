@@ -199,6 +199,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		super.stop();
 
 		LOGGER.info("Kafka Source {} stopped.", getName());
+		
+		LOGGER.info("#################################################################");
 	}
 
 }
