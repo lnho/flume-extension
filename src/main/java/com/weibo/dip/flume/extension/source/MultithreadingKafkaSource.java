@@ -183,8 +183,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	@Override
 	public synchronized void stop() {
-		consumer.commitOffsets();
-
 		consumer.shutdown();
 
 		executor.shutdown();
