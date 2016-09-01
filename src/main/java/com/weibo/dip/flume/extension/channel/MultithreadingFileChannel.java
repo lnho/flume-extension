@@ -41,13 +41,13 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 		Preconditions.checkState(channels > 0, "channels's value must be greater than zero");
 
-		String checkpointDirStr = context.getString("checkpointDir");
+		checkpointDirStr = context.getString("checkpointDir");
 		LOGGER.info("checkpointDir: {}", checkpointDirStr);
 
 		Preconditions.checkState(StringUtils.isNotEmpty(checkpointDirStr),
 				"checkpointDirStr's value must not be empty");
 
-		String dataDirStr = context.getString("dataDir");
+		dataDirStr = context.getString("dataDir");
 		LOGGER.info("dataDir: {}", dataDirStr);
 
 		Preconditions.checkState(StringUtils.isNotEmpty(dataDirStr), "dataDirStr's value must not be empty");
