@@ -108,6 +108,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 						LOGGER.debug(getName() + " write " + events.size() + " events to channel");
 					}
 
+					LOGGER.warn((!kafkaAutoCommitEnabled && !stoped) + "");
+
 					if (!kafkaAutoCommitEnabled && !stoped) {
 						consumer.commitOffsets();
 					}
