@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
 import org.apache.flume.EventDrivenSource;
@@ -123,47 +124,51 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		@Override
 		public void run() {
-			LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$" + Thread.currentThread().getName() + " started");
-			
-			ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
+			try {
+				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$" + Thread.currentThread().getName() + " started");
 
-			List<Event> events = new ArrayList<Event>();
+				ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
 
-			long batchEndTime = System.currentTimeMillis() + timeUpperLimit;
+				List<Event> events = new ArrayList<Event>();
 
-			byte[] kafkaMessage = null;
+				long batchEndTime = System.currentTimeMillis() + timeUpperLimit;
 
-			Map<String, String> headers = null;
+				byte[] kafkaMessage = null;
 
-			while (iterator.hasNext()) {
-				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+				Map<String, String> headers = null;
 
-				if (events.size() < batchUpperLimit && System.currentTimeMillis() < batchEndTime) {
-					MessageAndMetadata<byte[], byte[]> messageAndMetadata = it.next();
+				while (iterator.hasNext()) {
+					LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
 
-					kafkaMessage = messageAndMetadata.message();
+					if (events.size() < batchUpperLimit && System.currentTimeMillis() < batchEndTime) {
+						MessageAndMetadata<byte[], byte[]> messageAndMetadata = it.next();
 
-					headers = new HashMap<String, String>();
+						kafkaMessage = messageAndMetadata.message();
 
-					headers.put(KafkaSourceConstants.TOPIC, messageAndMetadata.topic());
-					headers.put(KafkaSourceConstants.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
-					headers.put("hostname", hostname);
+						headers = new HashMap<String, String>();
 
-					if (LOGGER.isDebugEnabled()) {
-						LOGGER.debug("Message: " + new String(kafkaMessage) + ", Headers: " + headers);
+						headers.put(KafkaSourceConstants.TOPIC, messageAndMetadata.topic());
+						headers.put(KafkaSourceConstants.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
+						headers.put("hostname", hostname);
+
+						if (LOGGER.isDebugEnabled()) {
+							LOGGER.debug("Message: " + new String(kafkaMessage) + ", Headers: " + headers);
+						}
+
+						events.add(EventBuilder.withBody(kafkaMessage, headers));
+					} else {
+						flush(events);
+
+						batchEndTime = System.currentTimeMillis() + timeUpperLimit;
 					}
-
-					events.add(EventBuilder.withBody(kafkaMessage, headers));
-				} else {
-					flush(events);
-
-					batchEndTime = System.currentTimeMillis() + timeUpperLimit;
 				}
+
+				flush(events);
+
+				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$" + Thread.currentThread().getName() + " stoped");
+			} catch (Throwable e) {
+				LOGGER.error(ExceptionUtils.getFullStackTrace(e));
 			}
-
-			flush(events);
-
-			LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$" + Thread.currentThread().getName() + " stoped");
 		}
 
 	}
