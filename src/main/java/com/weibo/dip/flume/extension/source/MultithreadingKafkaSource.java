@@ -153,7 +153,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$5");
 
-				flush(events);
+				//flush(events);
 			} catch (Throwable e) {
 				LOGGER.error("KafkaConsumer error: " + ExceptionUtils.getFullStackTrace(e));
 			}
