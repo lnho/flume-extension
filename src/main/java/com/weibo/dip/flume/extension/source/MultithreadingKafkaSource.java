@@ -149,6 +149,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 						batchEndTime = System.currentTimeMillis() + timeUpperLimit;
 					}
 				}
+				
+				LOGGER.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
 				flush(events);
 			} catch (Throwable e) {
