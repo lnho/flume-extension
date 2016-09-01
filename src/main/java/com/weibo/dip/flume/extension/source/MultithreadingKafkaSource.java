@@ -125,9 +125,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				Map<String, String> headers = null;
 
 				while (iterator.hasNext()) {
-					LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4");
-
-					if (events.size() < batchUpperLimit && System.currentTimeMillis() < batchEndTime) {
+					if (events.size() < batchUpperLimit) {
 						MessageAndMetadata<byte[], byte[]> messageAndMetadata = iterator.next();
 
 						kafkaMessage = messageAndMetadata.message();
