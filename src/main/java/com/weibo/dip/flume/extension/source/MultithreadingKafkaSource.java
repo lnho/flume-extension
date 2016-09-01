@@ -45,8 +45,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MultithreadingKafkaSource.class);
 
-	private ConsumerConnector consumer;
-
 	private String topics;
 
 	private int threads;
@@ -61,7 +59,11 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private String hostname;
 
+	private ConsumerConnector consumer;
+
 	private ExecutorService executor = null;
+
+	private boolean stoped = false;
 
 	@Override
 	public void configure(Context context) {
@@ -98,7 +100,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		}
 
 		private void flush(List<Event> events) {
-			LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$flush begin...");
 			if (CollectionUtils.isNotEmpty(events)) {
 				try {
 					getChannelProcessor().processEventBatch(events);
@@ -108,7 +109,9 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					}
 
 					if (!kafkaAutoCommitEnabled) {
+						LOGGER.info("commitOffsets begin");
 						consumer.commitOffsets();
+						LOGGER.info("commitOffsets end");
 					}
 
 					events.clear();
@@ -116,7 +119,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					LOGGER.error("KafkaConsumer flush error: " + ExceptionUtils.getFullStackTrace(e));
 				}
 			}
-			LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$flush end...");
 		}
 
 		@Override
@@ -169,7 +171,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		LOGGER.info("Starting {}...", this);
 
 		try {
-			// initialize a consumer. This creates the connection to ZooKeeper
+			stoped = false;
+
 			consumer = KafkaSourceUtil.getConsumer(kafkaProps);
 
 			TopicFilter topicFilter = new Whitelist(topics);
@@ -192,6 +195,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	@Override
 	public synchronized void stop() {
+		stoped = true;
+
 		consumer.shutdown();
 
 		executor.shutdown();
