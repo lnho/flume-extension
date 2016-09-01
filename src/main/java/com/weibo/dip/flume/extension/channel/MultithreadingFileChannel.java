@@ -95,7 +95,10 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	@Override
 	public synchronized void stop() {
+		LOGGER.info("channels size: " + fileChannels.size());
+		
 		for (FileChannel fileChannel : fileChannels) {
+			LOGGER.info(Thread.currentThread().getName() + " stop fileChannel" + "%%%%%%%%%%%%%%");
 			fileChannel.stop();
 		}
 
