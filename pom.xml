@@ -25,6 +25,12 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.apache.flume.flume-ng-sources</groupId>
+			<artifactId>flume-kafka-source</artifactId>
+			<version>${flume.version}</version>
+		</dependency>
+
+		<dependency>
 			<groupId>org.apache.flume.flume-ng-channels</groupId>
 			<artifactId>flume-file-channel</artifactId>
 			<version>${flume.version}</version>
