@@ -183,13 +183,16 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	@Override
 	public synchronized void stop() {
+		consumer.shutdown();
+		
 		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$");
 
-		consumer.shutdown();
-
 		executor.shutdown();
+		
+		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$2");
 
 		while (!executor.isTerminated()) {
+			LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$3");
 			try {
 				executor.awaitTermination(3, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
