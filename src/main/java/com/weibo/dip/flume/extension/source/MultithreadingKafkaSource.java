@@ -149,10 +149,10 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 						batchEndTime = System.currentTimeMillis() + timeUpperLimit;
 					}
 				}
-				
+
 				LOGGER.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
-				flush(events);
+				// flush(events);
 			} catch (Throwable e) {
 				LOGGER.error("KafkaConsumer error: " + ExceptionUtils.getFullStackTrace(e));
 			}
@@ -187,22 +187,22 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 	@Override
 	public synchronized void stop() {
 		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-		
+
 		if (consumer != null) {
 			consumer.shutdown();
 		}
-		
+
 		LOGGER.info("#####################################3");
 
 		executor.shutdown();
-		
+
 		while (!executor.isTerminated()) {
 			try {
 				executor.awaitTermination(3, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 			}
 		}
-		
+
 		LOGGER.info("#####################################4");
 
 		super.stop();
