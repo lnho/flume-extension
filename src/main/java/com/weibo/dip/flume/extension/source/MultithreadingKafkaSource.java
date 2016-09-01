@@ -123,8 +123,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		@Override
 		public void run() {
 			try {
-				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$" + Thread.currentThread().getName() + " started");
-
 				ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
 
 				List<Event> events = new ArrayList<Event>();
@@ -136,8 +134,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				Map<String, String> headers = null;
 
 				while (iterator.hasNext()) {
-					LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-
 					if (events.size() < batchUpperLimit && System.currentTimeMillis() < batchEndTime) {
 						MessageAndMetadata<byte[], byte[]> messageAndMetadata = iterator.next();
 
@@ -162,10 +158,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				}
 
 				flush(events);
-
-				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$" + Thread.currentThread().getName() + " stoped");
 			} catch (Throwable e) {
-				LOGGER.error(ExceptionUtils.getFullStackTrace(e));
+				LOGGER.error("KafkaConsumer error: " + ExceptionUtils.getFullStackTrace(e));
 			}
 		}
 
