@@ -48,8 +48,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private ConsumerConnector consumer;
 
-	private ConsumerIterator<byte[], byte[]> it;
-
 	private String topics;
 
 	private int threads;
@@ -141,7 +139,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
 
 					if (events.size() < batchUpperLimit && System.currentTimeMillis() < batchEndTime) {
-						MessageAndMetadata<byte[], byte[]> messageAndMetadata = it.next();
+						MessageAndMetadata<byte[], byte[]> messageAndMetadata = iterator.next();
 
 						kafkaMessage = messageAndMetadata.message();
 
