@@ -96,6 +96,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		}
 
 		private void flush(List<Event> events) {
+			LOGGER.info("flush begin.......................");
 			if (CollectionUtils.isNotEmpty(events)) {
 				try {
 					getChannelProcessor().processEventBatch(events);
@@ -109,6 +110,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					LOGGER.error("KafkaConsumer flush error: " + ExceptionUtils.getFullStackTrace(e));
 				}
 			}
+			
+			LOGGER.info("flush end.......................");
 		}
 
 		@Override
