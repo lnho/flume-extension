@@ -123,6 +123,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				byte[] kafkaMessage = null;
 
 				Map<String, String> headers = null;
+				
+				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4");
 
 				while (iterator.hasNext()) {
 					if (events.size() < batchUpperLimit && System.currentTimeMillis() < batchEndTime) {
@@ -147,6 +149,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 						batchEndTime = System.currentTimeMillis() + timeUpperLimit;
 					}
 				}
+				
+				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$5");
 
 				// flush(events);
 			} catch (Throwable e) {
