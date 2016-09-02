@@ -79,6 +79,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		kafkaProps = KafkaSourceUtil.getKafkaProperties(context);
 
 		kafkaProps.put(KafkaSourceConstants.AUTO_COMMIT_ENABLED, "true");
+		kafkaProps.put(KafkaSourceConstants.CONSUMER_TIMEOUT, "-1");
 
 		try {
 			hostname = InetAddress.getLocalHost().getHostName();
