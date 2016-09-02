@@ -106,8 +106,12 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				try {
 					channelProcessor.processEventBatch(events);
 
+					LOGGER.info("KafkaConsumer " + Thread.currentThread().getName() + " flush " + events.size()
+							+ " events to channel");
+
 					if (LOGGER.isDebugEnabled()) {
-						LOGGER.debug(getName() + " write " + events.size() + " events to channel");
+						LOGGER.debug("KafkaConsumer " + Thread.currentThread().getName() + " flush " + events.size()
+								+ " events to channel");
 					}
 
 					events.clear();
