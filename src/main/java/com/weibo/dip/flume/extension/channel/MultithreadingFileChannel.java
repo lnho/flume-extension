@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.flume.Context;
+import org.apache.flume.annotations.Disposable;
 import org.apache.flume.channel.BasicChannelSemantics;
 import org.apache.flume.channel.BasicTransactionSemantics;
 import org.apache.flume.channel.file.FileChannel;
@@ -22,6 +23,7 @@ import com.google.common.base.Preconditions;
  * @author yurun
  *
  */
+@Disposable
 public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MultithreadingFileChannel.class);
@@ -104,6 +106,8 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 		for (FileChannel fileChannel : fileChannels) {
 			fileChannel.stop();
 		}
+
+		fileChannels.clear();
 
 		super.stop();
 	}

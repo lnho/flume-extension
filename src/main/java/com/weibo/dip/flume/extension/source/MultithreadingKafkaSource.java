@@ -96,7 +96,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		}
 
 		private void flush(List<Event> events) {
-			LOGGER.info("flush begin.......................");
 			if (CollectionUtils.isNotEmpty(events)) {
 				try {
 					getChannelProcessor().processEventBatch(events);
@@ -110,12 +109,12 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					LOGGER.error("KafkaConsumer flush error: " + ExceptionUtils.getFullStackTrace(e));
 				}
 			}
-			
-			LOGGER.info("flush end.......................");
 		}
 
 		@Override
 		public void run() {
+			LOGGER.info("KafkaConsumer " + Thread.currentThread().getName() + " starting...");
+
 			try {
 				ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
 
@@ -151,12 +150,12 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					}
 				}
 
-				LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$5");
-
-				//flush(events);
+				flush(events);
 			} catch (Throwable e) {
 				LOGGER.error("KafkaConsumer error: " + ExceptionUtils.getFullStackTrace(e));
 			}
+
+			LOGGER.info("KafkaConsumer " + Thread.currentThread().getName() + " stoped");
 		}
 
 	}
@@ -190,14 +189,9 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 	public synchronized void stop() {
 		consumer.shutdown();
 
-		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$");
-
 		executor.shutdown();
 
-		LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$2");
-
 		while (!executor.isTerminated()) {
-			LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$3");
 			try {
 				executor.awaitTermination(3, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
@@ -207,8 +201,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		super.stop();
 
 		LOGGER.info("Kafka Source {} stopped.", getName());
-
-		LOGGER.info("#################################################################");
 	}
 
 }
