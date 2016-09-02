@@ -60,7 +60,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private ConsumerConnector consumer;
 
-	private ExecutorService executor = null;
+	private ExecutorService executor = Executors.newCachedThreadPool();
 
 	@Override
 	public void configure(Context context) {
@@ -105,9 +105,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 			if (CollectionUtils.isNotEmpty(events)) {
 				try {
 					channelProcessor.processEventBatch(events);
-
-					LOGGER.info("KafkaConsumer " + Thread.currentThread().getName() + " flush " + events.size()
-							+ " events to channel");
 
 					if (LOGGER.isDebugEnabled()) {
 						LOGGER.debug("KafkaConsumer " + Thread.currentThread().getName() + " flush " + events.size()
@@ -180,8 +177,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 			TopicFilter topicFilter = new Whitelist(topics);
 
 			List<KafkaStream<byte[], byte[]>> streams = consumer.createMessageStreamsByFilter(topicFilter, threads);
-
-			executor = Executors.newCachedThreadPool();
 
 			for (KafkaStream<byte[], byte[]> stream : streams) {
 				executor.submit(new KafkaConsumer(stream, getChannelProcessor()));
