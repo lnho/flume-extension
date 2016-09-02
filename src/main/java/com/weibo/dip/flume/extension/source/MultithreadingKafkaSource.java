@@ -20,6 +20,7 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
 import org.apache.flume.EventDrivenSource;
+import org.apache.flume.channel.ChannelProcessor;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.event.EventBuilder;
 import org.apache.flume.source.AbstractSource;
@@ -92,14 +93,18 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		private KafkaStream<byte[], byte[]> stream;
 
-		public KafkaConsumer(KafkaStream<byte[], byte[]> stream) {
+		private ChannelProcessor channelProcessor;
+
+		public KafkaConsumer(KafkaStream<byte[], byte[]> stream, ChannelProcessor channelProcessor) {
 			this.stream = stream;
+
+			this.channelProcessor = channelProcessor;
 		}
 
 		private void flush(List<Event> events) {
 			if (CollectionUtils.isNotEmpty(events)) {
 				try {
-					getChannelProcessor().processEventBatch(events);
+					channelProcessor.processEventBatch(events);
 
 					if (LOGGER.isDebugEnabled()) {
 						LOGGER.debug(getName() + " write " + events.size() + " events to channel");
@@ -175,7 +180,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 			executor = Executors.newCachedThreadPool();
 
 			for (KafkaStream<byte[], byte[]> stream : streams) {
-				executor.submit(new KafkaConsumer(stream));
+				executor.submit(new KafkaConsumer(stream, getChannelProcessor()));
 			}
 
 			super.start();
