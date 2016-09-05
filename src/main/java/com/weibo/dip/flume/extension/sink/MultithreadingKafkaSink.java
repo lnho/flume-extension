@@ -132,21 +132,21 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 							messageList.add(data);
 						}
 
-						transaction.commit();
-
-						transaction.close();
-
 						// send batch
 						if (CollectionUtils.isNotEmpty(messageList)) {
 							long startTime = System.nanoTime();
 
 							producer.send(messageList);
-
+							
 							long endTime = System.nanoTime();
 
 							counter.addToKafkaEventSendTimer((endTime - startTime) / (1000 * 1000));
 							counter.addToEventDrainSuccessCount(Long.valueOf(messageList.size()));
-						} else {
+						}
+
+						transaction.commit();
+
+						if (CollectionUtils.isNotEmpty(messageList)) {
 							try {
 								Thread.sleep(batchSleep);
 							} catch (InterruptedException e) {
@@ -159,12 +159,14 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 							try {
 								transaction.rollback();
 
-								transaction.close();
-
 								counter.incrementRollbackCount();
 							} catch (Exception ex) {
 								LOGGER.error("Transaction rollback failed: {}", ExceptionUtils.getFullStackTrace(ex));
 							}
+						}
+					} finally {
+						if (transaction != null) {
+							transaction.close();
 						}
 					}
 				}
