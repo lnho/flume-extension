@@ -372,8 +372,6 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 				try {
 					for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
-						LOGGER.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-
 						Event event = channel.take();
 
 						if (event == null) {
@@ -511,6 +509,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				}
 			} catch (Exception e) {
 				LOGGER.error("Flusher error: " + ExceptionUtils.getFullStackTrace(e));
+			} finally {
+				flusher.countDown();
 			}
 		}
 
