@@ -498,7 +498,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 				for (BucketWriter bucketWriter : writers) {
 					try {
-						bucketWriter.flush();
+						// bucketWriter.flush();
 					} catch (Exception e) {
 						LOGGER.error("Flusher bucketWriter flush error: " + ExceptionUtils.getFullStackTrace(e));
 
