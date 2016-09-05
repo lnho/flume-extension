@@ -461,9 +461,9 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 					sinkCounter.incrementBatchUnderflowCount();
 				}
 
-				takes.countDown();
+				//takes.countDown();
 
-				flusher.await();
+				//flusher.await();
 
 				if (!flushSuccessed) {
 					throw new IOException("HDFS flush error");
@@ -494,7 +494,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 		@Override
 		public void run() {
 			try {
-				takes.await();
+				//takes.await();
 
 				for (BucketWriter bucketWriter : writers) {
 					try {
@@ -510,7 +510,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 			} catch (Exception e) {
 				LOGGER.error("Flusher error: " + ExceptionUtils.getFullStackTrace(e));
 			} finally {
-				flusher.countDown();
+				//flusher.countDown();
 			}
 		}
 
@@ -527,13 +527,13 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 		try {
 			writers.clear();
 
-			takes = new CountDownLatch(threads);
+			//takes = new CountDownLatch(threads);
 
 			processors = new CountDownLatch(threads);
 
-			flushSuccessed = true;
+			//flushSuccessed = true;
 
-			flusher = new CountDownLatch(1);
+			//flusher = new CountDownLatch(1);
 
 			eventCount.set(0);
 
