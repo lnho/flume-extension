@@ -33,7 +33,7 @@ public class WriteHDFSMain {
 		while (++index <= length) {
 			writer.write(line);
 
-			if (index % 10000 == 0) {
+			if (index % 10 == 0) {
 				writer.flush();
 			}
 		}
