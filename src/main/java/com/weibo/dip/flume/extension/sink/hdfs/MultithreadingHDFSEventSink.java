@@ -434,7 +434,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 							synchronized (sfWritersLock) {
 								BucketWriter closedBucketWriter = sfWriters.get(lookupPath);
 
-								if (closedBucketWriter.isClosed()) {
+								if (closedBucketWriter == null || closedBucketWriter.isClosed()) {
 									hdfsWriter = writerFactory.getWriter(fileType);
 
 									bucketWriter = initializeBucketWriter(realPath, realName, lookupPath, hdfsWriter,
