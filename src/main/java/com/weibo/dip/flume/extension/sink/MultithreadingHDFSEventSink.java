@@ -3,6 +3,9 @@
  */
 package com.weibo.dip.flume.extension.sink;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -13,6 +16,9 @@ import org.apache.flume.EventDeliveryException;
 import org.apache.flume.Transaction;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.sink.AbstractSink;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -32,6 +38,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 	private boolean sinkStoped;
 
 	private int batchSize;
+
+	private BufferedWriter writer;
 
 	private class Sinker implements Runnable {
 
@@ -53,6 +61,9 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 							break;
 						}
 
+						synchronized (writer) {
+							writer.write(new String(event.getBody()));
+						}
 					}
 
 					transaction.commit();
@@ -78,6 +89,13 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	@Override
 	public synchronized void start() {
+		try {
+			writer = new BufferedWriter(new OutputStreamWriter(
+					FileSystem.get(new Configuration()).create(new Path("/tmp/yurun/flume.data"))));
+		} catch (Exception e) {
+
+		}
+
 		sinkStoped = false;
 
 		for (int index = 0; index < threads; index++) {
@@ -103,6 +121,11 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 			}
+		}
+
+		try {
+			writer.close();
+		} catch (IOException e) {
 		}
 
 		super.stop();
