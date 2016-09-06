@@ -106,6 +106,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 	@Override
 	public synchronized void start() {
 		try {
+			writers = new BufferedWriter[threads];
+
 			for (int index = 0; index < threads; index++) {
 				writers[index] = new BufferedWriter(new OutputStreamWriter(
 						FileSystem.get(new Configuration()).create(new Path("/tmp/events/flume.data" + index))));
