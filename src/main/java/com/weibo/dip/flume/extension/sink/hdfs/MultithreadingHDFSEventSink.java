@@ -21,18 +21,15 @@ package com.weibo.dip.flume.extension.sink.hdfs;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TimeZone;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Channel;
@@ -141,19 +138,140 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	private int threads;
 
-	private List<BucketWriter> writers = Collections.synchronizedList(Lists.newArrayList());
+	private boolean sinkStoped = false;
 
-	private CountDownLatch takes;
+	private ExecutorService sinkers = Executors.newCachedThreadPool();
 
-	private CountDownLatch processors;
+	private class Sinker implements Runnable {
 
-	private boolean flushSuccessed = true;
+		@Override
+		public void run() {
+			while (!sinkStoped) {
+				Channel channel = getChannel();
 
-	private CountDownLatch flusher;
+				Transaction transaction = channel.getTransaction();
 
-	private ExecutorService executor = Executors.newCachedThreadPool();
+				List<BucketWriter> writers = Lists.newArrayList();
 
-	private AtomicLong eventCount = new AtomicLong(0);
+				transaction.begin();
+
+				try {
+					int txnEventCount = 0;
+
+					for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
+						Event event = channel.take();
+						if (event == null) {
+							break;
+						}
+
+						// reconstruct the path name by substituting place
+						// holders
+						String realPath = BucketPath.escapeString(filePath, event.getHeaders(), timeZone, needRounding,
+								roundUnit, roundValue, useLocalTime);
+						String realName = BucketPath.escapeString(fileName, event.getHeaders(), timeZone, needRounding,
+								roundUnit, roundValue, useLocalTime);
+
+						String lookupPath = realPath + DIRECTORY_DELIMITER + realName;
+
+						BucketWriter bucketWriter;
+
+						HDFSWriter hdfsWriter = null;
+
+						// Callback to remove the reference to the bucket writer
+						// from the
+						// sfWriters map so that all buffers used by the HDFS
+						// file
+						// handles are garbage collected.
+						WriterCallback closeCallback = new WriterCallback() {
+							@Override
+							public void run(String bucketPath) {
+								LOGGER.info("Writer callback called.");
+
+								synchronized (sfWritersLock) {
+									sfWriters.remove(bucketPath);
+								}
+							}
+						};
+
+						synchronized (sfWritersLock) {
+							bucketWriter = sfWriters.get(lookupPath);
+							// we haven't seen this file yet, so open it and
+							// cache the handle
+							if (bucketWriter == null) {
+								hdfsWriter = writerFactory.getWriter(fileType);
+
+								bucketWriter = initializeBucketWriter(realPath, realName, lookupPath, hdfsWriter,
+										closeCallback);
+
+								sfWriters.put(lookupPath, bucketWriter);
+							}
+						}
+
+						// track the buckets getting written in this transaction
+						if (!writers.contains(bucketWriter)) {
+							writers.add(bucketWriter);
+						}
+
+						// Write the data to HDFS
+						try {
+							bucketWriter.append(event);
+						} catch (BucketClosedException ex) {
+							LOGGER.info("Bucket was closed while trying to append, "
+									+ "reinitializing bucket and writing event.");
+
+							synchronized (sfWritersLock) {
+								BucketWriter closedBucketWriter = sfWriters.get(lookupPath);
+
+								if (closedBucketWriter == null || closedBucketWriter.isClosed()) {
+									hdfsWriter = writerFactory.getWriter(fileType);
+
+									bucketWriter = initializeBucketWriter(realPath, realName, lookupPath, hdfsWriter,
+											closeCallback);
+
+									sfWriters.put(lookupPath, bucketWriter);
+								} else {
+									bucketWriter = closedBucketWriter;
+								}
+							}
+
+							bucketWriter.append(event);
+						}
+					}
+
+					if (txnEventCount == 0) {
+						sinkCounter.incrementBatchEmptyCount();
+					} else if (txnEventCount == batchSize) {
+						sinkCounter.incrementBatchCompleteCount();
+					} else {
+						sinkCounter.incrementBatchUnderflowCount();
+					}
+
+					// flush all pending buckets before committing the
+					// transaction
+					for (BucketWriter bucketWriter : writers) {
+						bucketWriter.flush();
+					}
+
+					transaction.commit();
+
+					if (txnEventCount >= 1) {
+						sinkCounter.addToEventDrainSuccessCount(txnEventCount);
+					}
+				} catch (IOException eIO) {
+					transaction.rollback();
+
+					LOGGER.warn("Sinker hdfs io error: " + ExceptionUtils.getFullStackTrace(eIO));
+				} catch (Throwable th) {
+					transaction.rollback();
+
+					LOGGER.error("Sinker process failed: " + ExceptionUtils.getFullStackTrace(th));
+				} finally {
+					transaction.close();
+				}
+			}
+		}
+
+	}
 
 	/*
 	 * Extended Java LinkedHashMap for open file handle LRU queue. We want to
@@ -357,165 +475,6 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 		return codec;
 	}
 
-	private class Processor implements Runnable {
-
-		@Override
-		public void run() {
-			Channel channel = getChannel();
-
-			Transaction transaction = channel.getTransaction();
-
-			transaction.begin();
-
-			try {
-				int txnEventCount = 0;
-
-				try {
-					for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
-						Event event = channel.take();
-
-						if (event == null) {
-							break;
-						}
-
-						// reconstruct the path name by substituting place
-						// holders
-						String realPath = BucketPath.escapeString(filePath, event.getHeaders(), timeZone, needRounding,
-								roundUnit, roundValue, useLocalTime);
-						String realName = BucketPath.escapeString(fileName, event.getHeaders(), timeZone, needRounding,
-								roundUnit, roundValue, useLocalTime);
-
-						String lookupPath = realPath + DIRECTORY_DELIMITER + realName;
-
-						BucketWriter bucketWriter;
-
-						HDFSWriter hdfsWriter = null;
-
-						// Callback to remove the reference to the bucket writer
-						// from the sfWriters map so that all buffers used by
-						// the HDFS file handles are garbage collected.
-						WriterCallback closeCallback = new WriterCallback() {
-							@Override
-							public void run(String bucketPath) {
-								LOGGER.info("Writer callback called.");
-
-								synchronized (sfWritersLock) {
-									sfWriters.remove(bucketPath);
-								}
-							}
-						};
-
-						synchronized (sfWritersLock) {
-							bucketWriter = sfWriters.get(lookupPath);
-							// we haven't seen this file yet, so open it and
-							// cache the handle
-							if (bucketWriter == null) {
-								hdfsWriter = writerFactory.getWriter(fileType);
-
-								bucketWriter = initializeBucketWriter(realPath, realName, lookupPath, hdfsWriter,
-										closeCallback);
-
-								sfWriters.put(lookupPath, bucketWriter);
-							}
-						}
-
-						// track the buckets getting written in this transaction
-						if (!writers.contains(bucketWriter)) {
-							writers.add(bucketWriter);
-						}
-
-						// Write the data to HDFS
-						try {
-							bucketWriter.append(event);
-						} catch (BucketClosedException ex) {
-							LOGGER.info("Bucket was closed while trying to append, "
-									+ "reinitializing bucket and writing event.");
-
-							synchronized (sfWritersLock) {
-								BucketWriter closedBucketWriter = sfWriters.get(lookupPath);
-
-								if (closedBucketWriter == null || closedBucketWriter.isClosed()) {
-									hdfsWriter = writerFactory.getWriter(fileType);
-
-									bucketWriter = initializeBucketWriter(realPath, realName, lookupPath, hdfsWriter,
-											closeCallback);
-
-									sfWriters.put(lookupPath, bucketWriter);
-								} else {
-									bucketWriter = closedBucketWriter;
-								}
-							}
-
-							bucketWriter.append(event);
-						}
-					}
-				} catch (Exception e) {
-					LOGGER.error("Processor take(append) error: " + ExceptionUtils.getFullStackTrace(e));
-				}
-
-				if (txnEventCount == 0) {
-					sinkCounter.incrementBatchEmptyCount();
-				} else if (txnEventCount == batchSize) {
-					sinkCounter.incrementBatchCompleteCount();
-				} else {
-					sinkCounter.incrementBatchUnderflowCount();
-				}
-
-				// takes.countDown();
-
-				// flusher.await();
-
-				if (!flushSuccessed) {
-					throw new IOException("HDFS flush error");
-				}
-
-				transaction.commit();
-
-				eventCount.addAndGet(txnEventCount);
-
-				if (txnEventCount >= 1) {
-					sinkCounter.addToEventDrainSuccessCount(txnEventCount);
-				}
-			} catch (Exception e) {
-				transaction.rollback();
-
-				LOGGER.error("Processor error: " + ExceptionUtils.getFullStackTrace(e));
-			} finally {
-				transaction.close();
-
-				processors.countDown();
-			}
-		}
-
-	}
-
-	private class Flusher implements Runnable {
-
-		@Override
-		public void run() {
-			try {
-				// takes.await();
-
-				for (BucketWriter bucketWriter : writers) {
-					try {
-						// bucketWriter.flush();
-					} catch (Exception e) {
-						LOGGER.error("Flusher bucketWriter flush error: " + ExceptionUtils.getFullStackTrace(e));
-
-						flushSuccessed = false;
-
-						break;
-					}
-				}
-			} catch (Exception e) {
-				LOGGER.error("Flusher error: " + ExceptionUtils.getFullStackTrace(e));
-			} finally {
-				// flusher.countDown();
-			}
-		}
-
-	}
-
 	/**
 	 * Pull events out of channel and send it to HDFS. Take at most batchSize
 	 * events per Transaction. Find the corresponding bucket for the event.
@@ -524,41 +483,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 	 * This method is not thread safe.
 	 */
 	public Status process() throws EventDeliveryException {
-		try {
-			long begin = System.currentTimeMillis();
-
-			writers.clear();
-
-			// takes = new CountDownLatch(threads);
-
-			processors = new CountDownLatch(threads);
-
-			// flushSuccessed = true;
-
-			// flusher = new CountDownLatch(1);
-
-			eventCount.set(0);
-
-			for (int index = 0; index < threads; index++) {
-				executor.submit(new Processor());
-			}
-
-			executor.submit(new Flusher());
-
-			processors.await();
-
-			long end = System.currentTimeMillis();
-
-			LOGGER.info("consume time: " + (end - begin) / 1000 + "$$$$$$$$$$$$$$$$$$");
-
-			if (eventCount.get() > 0) {
-				return Status.READY;
-			} else {
-				return Status.BACKOFF;
-			}
-		} catch (InterruptedException e) {
-			throw new EventDeliveryException(e);
-		}
+		return Status.BACKOFF;
 	}
 
 	private BucketWriter initializeBucketWriter(String realPath, String realName, String lookupPath,
@@ -576,6 +501,17 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	@Override
 	public void stop() {
+		sinkStoped = false;
+
+		sinkers.shutdown();
+
+		while (!sinkers.isTerminated()) {
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+			}
+		}
+
 		// do not constrain close() calls with a timeout
 		synchronized (sfWritersLock) {
 			for (Entry<String, BucketWriter> entry : sfWriters.entrySet()) {
@@ -627,7 +563,18 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				new ThreadFactoryBuilder().setNameFormat(rollerName).build());
 
 		this.sfWriters = new WriterLinkedHashMap(maxOpenFiles);
+
+		String sinkerName = "hdfs-" + getName() + "-sink-sinker-%d";
+		sinkers = Executors.newFixedThreadPool(threads, new ThreadFactoryBuilder().setNameFormat(sinkerName).build());
+
+		sinkStoped = false;
+
+		for (int index = 0; index < threads; index++) {
+			sinkers.submit(new Sinker());
+		}
+
 		sinkCounter.start();
+
 		super.start();
 	}
 
