@@ -43,9 +43,15 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	private int batchSize;
 
-	private BufferedWriter writer;
+	private BufferedWriter[] writers;
 
 	private class Sinker implements Runnable {
+
+		private BufferedWriter writer;
+
+		public Sinker(BufferedWriter writer) {
+			this.writer = writer;
+		}
 
 		@Override
 		public void run() {
@@ -70,10 +76,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 						events.add(event);
 					}
 
-					synchronized (writer) {
-						for (Event event : events) {
-							writer.write(new String(event.getBody()));
-						}
+					for (Event event : events) {
+						writer.write(new String(event.getBody()));
 					}
 
 					writer.flush();
@@ -102,8 +106,10 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 	@Override
 	public synchronized void start() {
 		try {
-			writer = new BufferedWriter(new OutputStreamWriter(
-					FileSystem.get(new Configuration()).create(new Path("/tmp/events/flume.data"))));
+			for (int index = 0; index < threads; index++) {
+				writers[index] = new BufferedWriter(new OutputStreamWriter(
+						FileSystem.get(new Configuration()).create(new Path("/tmp/events/flume.data" + index))));
+			}
 		} catch (Exception e) {
 			LOGGER.error("create writer error: " + ExceptionUtils.getFullStackTrace(e));
 		}
@@ -111,7 +117,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 		sinkStoped = false;
 
 		for (int index = 0; index < threads; index++) {
-			sinkers.submit(new Sinker());
+			sinkers.submit(new Sinker(writers[index]));
 		}
 
 		super.start();
@@ -136,7 +142,9 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 		}
 
 		try {
-			writer.close();
+			for (int index = 0; index < threads; index++) {
+				writers[index].close();
+			}
 		} catch (IOException e) {
 		}
 
