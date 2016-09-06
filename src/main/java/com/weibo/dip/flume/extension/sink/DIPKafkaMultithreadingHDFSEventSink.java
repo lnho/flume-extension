@@ -142,7 +142,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 							writer = writers.get(lookupPath);
 
 							if (writer == null) {
-								writer = new CategoryWriter(lookupPath);
+								writer = new CategoryWriter(
+										lookupPath + FILENAME_SEPARATOR + System.currentTimeMillis());
 
 								writers.put(lookupPath, writer);
 							}
