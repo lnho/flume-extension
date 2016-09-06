@@ -53,7 +53,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	private boolean sinkStoped;
 
-	private String rootDirectory = "/tmp/flume/event/";
+	private String rootDirectory;
 
 	private int batchSize;
 
@@ -88,7 +88,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 		private String getLookupPath(Event event) {
 			Map<String, String> headers = event.getHeaders();
 
-			String category = headers.get("topic") + event.hashCode() % 6;
+			String category = headers.get("topic");
 
 			String timestamp = headers.get("timestamp");
 
@@ -191,6 +191,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	@Override
 	public void configure(Context context) {
+		rootDirectory = context.getString("rootDirectory", "/tmp/");
+
 		batchSize = context.getInteger("batchSize", 1000);
 
 		threads = context.getInteger("threads", 1);
