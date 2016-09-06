@@ -6,6 +6,8 @@ package com.weibo.dip.flume.extension.sink;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -18,6 +20,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.lang.CharEncoding;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Channel;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
@@ -25,6 +29,9 @@ import org.apache.flume.EventDeliveryException;
 import org.apache.flume.Transaction;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.sink.AbstractSink;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,13 +45,15 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(DIPKafkaMultithreadingHDFSEventSink.class);
 
+	private FileSystem fileSystem;
+
 	private int threads;
 
 	private ExecutorService sinkers;
 
 	private boolean sinkStoped;
 
-	private String rootDirectory = "/user/hdfs/rawlog/";
+	private String rootDirectory = "/tmp/flume/event/";
 
 	private int batchSize;
 
@@ -157,12 +166,16 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		private BufferedWriter writer;
 
-		public CategoryWriter(String path) {
-
+		public CategoryWriter(String path) throws UnsupportedEncodingException, IllegalArgumentException, IOException {
+			writer = new BufferedWriter(new OutputStreamWriter(fileSystem.create(new Path(path)), CharEncoding.UTF_8));
 		}
 
-		public void write(List<Event> events) {
-			LOGGER.info("CategoryWriter write " + events.size());
+		public synchronized void write(List<Event> events) throws UnsupportedEncodingException, IOException {
+			for (Event event : events) {
+				writer.write(new String(event.getBody(), CharEncoding.UTF_8));
+			}
+
+			writer.flush();
 		}
 
 		@Override
@@ -188,6 +201,12 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	@Override
 	public synchronized void start() {
+		try {
+			fileSystem = FileSystem.get(new Configuration());
+		} catch (IOException e) {
+			LOGGER.error("fileSystem get error: " + ExceptionUtils.getFullStackTrace(e));
+		}
+
 		writers = new HashMap<>();
 
 		sinkStoped = false;
