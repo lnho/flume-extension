@@ -4,6 +4,7 @@
 package com.weibo.dip.flume.extension.sink;
 
 import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -31,9 +32,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  * @author yurun
  *
  */
-public class MultithreadingHDFSEventSink extends AbstractSink implements Configurable {
+public class DIPMultithreadingHDFSEventSink extends AbstractSink implements Configurable {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(MultithreadingHDFSEventSink.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(DIPMultithreadingHDFSEventSink.class);
 
 	private int threads;
 
@@ -88,6 +89,27 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				} finally {
 					transaction.close();
 				}
+			}
+		}
+
+	}
+
+	private class CategoryWriter implements Closeable {
+
+		private BufferedWriter writer;
+
+		public CategoryWriter(String path) {
+
+		}
+
+		public void write(List<Event> events) {
+
+		}
+
+		@Override
+		public void close() throws IOException {
+			if (writer != null) {
+				writer.close();
 			}
 		}
 
