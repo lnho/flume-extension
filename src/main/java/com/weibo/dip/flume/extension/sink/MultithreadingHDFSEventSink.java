@@ -67,6 +67,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 							writer.write(new String(event.getBody()));
 						}
 					}
+					
+					writer.flush();
 
 					transaction.commit();
 				} catch (Exception e) {
