@@ -9,6 +9,7 @@ import java.io.OutputStreamWriter;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Channel;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
@@ -64,7 +65,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 						synchronized (writer) {
 							writer.write(new String(event.getBody()));
-							
+
 							LOGGER.info("writer success");
 						}
 					}
@@ -96,7 +97,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 			writer = new BufferedWriter(new OutputStreamWriter(
 					FileSystem.get(new Configuration()).create(new Path("/tmp/yurun/flume.data"))));
 		} catch (Exception e) {
-
+			LOGGER.error("create writer error: " + ExceptionUtils.getFullStackTrace(e));
 		}
 
 		sinkStoped = false;
