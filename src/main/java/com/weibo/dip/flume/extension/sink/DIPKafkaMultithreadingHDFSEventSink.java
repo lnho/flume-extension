@@ -153,6 +153,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 					transaction.commit();
 				} catch (Exception e) {
+					LOGGER.error("Sinker write error: " + ExceptionUtils.getFullStackTrace(e));
+
 					transaction.rollback();
 				} finally {
 					transaction.close();
