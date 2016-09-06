@@ -191,8 +191,6 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	@Override
 	public void configure(Context context) {
-		rootDirectory = context.getString("rootDirectory", "/");
-
 		batchSize = context.getInteger("batchSize", 1000);
 
 		threads = context.getInteger("threads", 1);
