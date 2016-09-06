@@ -95,7 +95,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 	public synchronized void start() {
 		try {
 			writer = new BufferedWriter(new OutputStreamWriter(
-					FileSystem.get(new Configuration()).create(new Path("/tmp/yurun/flume.data"))));
+					FileSystem.get(new Configuration()).create(new Path("/tmp/events/flume.data"))));
 		} catch (Exception e) {
 			LOGGER.error("create writer error: " + ExceptionUtils.getFullStackTrace(e));
 		}
