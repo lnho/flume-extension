@@ -88,7 +88,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 		private String getLookupPath(Event event) {
 			Map<String, String> headers = event.getHeaders();
 
-			String category = headers.get("topic");
+			String category = headers.get("topic") + event.hashCode() % 6;
 
 			String timestamp = headers.get("timestamp");
 
