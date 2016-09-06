@@ -249,7 +249,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 					// flush all pending buckets before committing the
 					// transaction
 					for (BucketWriter bucketWriter : writers) {
-						bucketWriter.flush();
+						// bucketWriter.flush();
 					}
 
 					transaction.commit();
