@@ -19,6 +19,8 @@ import org.apache.flume.sink.AbstractSink;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -28,8 +30,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  */
 public class MultithreadingHDFSEventSink extends AbstractSink implements Configurable {
 
-	// private static final Logger LOGGER =
-	// LoggerFactory.getLogger(MultithreadingHDFSEventSink.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(MultithreadingHDFSEventSink.class);
 
 	private int threads;
 
@@ -63,6 +64,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 						synchronized (writer) {
 							writer.write(new String(event.getBody()));
+							
+							LOGGER.info("writer success");
 						}
 					}
 
