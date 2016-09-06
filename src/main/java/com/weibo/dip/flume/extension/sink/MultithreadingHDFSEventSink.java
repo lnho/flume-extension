@@ -6,6 +6,8 @@ package com.weibo.dip.flume.extension.sink;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -57,17 +59,23 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				try {
 					int txnEventCount = 0;
 
+					List<Event> events = new ArrayList<>();
+
 					for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
 						Event event = channel.take();
 						if (event == null) {
 							break;
 						}
 
-						synchronized (writer) {
+						events.add(event);
+					}
+
+					synchronized (writer) {
+						for (Event event : events) {
 							writer.write(new String(event.getBody()));
 						}
 					}
-					
+
 					writer.flush();
 
 					transaction.commit();
