@@ -96,7 +96,11 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	@Override
 	protected BasicTransactionSemantics createTransaction() {
-		return fileChannels.get((int) (System.currentTimeMillis() % channels)).createTransaction();
+		try {
+			return fileChannels.get((int) (System.currentTimeMillis() % channels)).createTransaction();
+		} catch (IndexOutOfBoundsException e) {
+			return null;
+		}
 	}
 
 	@Override

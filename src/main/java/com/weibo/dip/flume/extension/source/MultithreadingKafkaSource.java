@@ -198,7 +198,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		while (!executor.isTerminated()) {
 			try {
-				executor.awaitTermination(3, TimeUnit.SECONDS);
+				executor.awaitTermination(1, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 			}
 		}
