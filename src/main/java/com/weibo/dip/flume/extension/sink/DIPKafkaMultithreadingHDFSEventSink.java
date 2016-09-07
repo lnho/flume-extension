@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -322,7 +323,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		while (!rollers.isTerminated()) {
 			try {
-				Thread.sleep(1000);
+				rollers.awaitTermination(1, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 			}
 		}
@@ -333,7 +334,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		while (!sinkers.isTerminated()) {
 			try {
-				Thread.sleep(1000);
+				rollers.awaitTermination(1, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 			}
 		}

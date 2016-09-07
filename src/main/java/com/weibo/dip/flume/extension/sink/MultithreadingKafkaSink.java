@@ -137,7 +137,7 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 							long startTime = System.nanoTime();
 
 							producer.send(messageList);
-							
+
 							long endTime = System.nanoTime();
 
 							counter.addToKafkaEventSendTimer((endTime - startTime) / (1000 * 1000));
@@ -203,7 +203,7 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 		while (!executor.isTerminated()) {
 			try {
-				executor.awaitTermination(3, TimeUnit.SECONDS);
+				executor.awaitTermination(1, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 			}
 		}
