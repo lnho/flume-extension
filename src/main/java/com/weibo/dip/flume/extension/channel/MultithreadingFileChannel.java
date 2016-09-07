@@ -13,6 +13,7 @@ import org.apache.flume.channel.BasicChannelSemantics;
 import org.apache.flume.channel.BasicTransactionSemantics;
 import org.apache.flume.channel.file.FileChannel;
 import org.apache.flume.channel.file.FileChannelConfiguration;
+import org.apache.flume.lifecycle.LifecycleState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,6 +106,10 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	@Override
 	public synchronized void stop() {
+		if (getLifecycleState() == LifecycleState.STOP) {
+			return;
+		}
+
 		for (FileChannel fileChannel : fileChannels) {
 			fileChannel.stop();
 		}

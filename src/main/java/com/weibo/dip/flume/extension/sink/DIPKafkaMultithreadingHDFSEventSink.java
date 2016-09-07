@@ -30,6 +30,7 @@ import org.apache.flume.Event;
 import org.apache.flume.EventDeliveryException;
 import org.apache.flume.Transaction;
 import org.apache.flume.conf.Configurable;
+import org.apache.flume.lifecycle.LifecycleState;
 import org.apache.flume.sink.AbstractSink;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -292,13 +293,12 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		writers = new HashMap<>();
 
-		// rollStoped = false;
-		//
-		// rollers = Executors.newSingleThreadExecutor(
-		// new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() +
-		// "-roll-roller-%d").build());
-		//
-		// rollers.submit(new Roller());
+		rollStoped = false;
+
+		rollers = Executors.newSingleThreadExecutor(
+				new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() + "-roll-roller-%d").build());
+
+		rollers.submit(new Roller());
 
 		sinkStoped = false;
 
@@ -319,16 +319,20 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	@Override
 	public synchronized void stop() {
-		// rollStoped = true;
-		//
-		// rollers.shutdownNow();
-		//
-		// while (!rollers.isTerminated()) {
-		// try {
-		// rollers.awaitTermination(1, TimeUnit.SECONDS);
-		// } catch (InterruptedException e) {
-		// }
-		// }
+		if (getLifecycleState() == LifecycleState.STOP) {
+			return;
+		}
+
+		rollStoped = true;
+
+		rollers.shutdownNow();
+
+		while (!rollers.isTerminated()) {
+			try {
+				rollers.awaitTermination(1, TimeUnit.SECONDS);
+			} catch (InterruptedException e) {
+			}
+		}
 
 		sinkStoped = true;
 
@@ -344,12 +348,17 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 		synchronized (writers) {
 			if (MapUtils.isNotEmpty(writers)) {
 				for (Entry<String, CategoryWriter> entry : writers.entrySet()) {
+					CategoryWriter writer = entry.getValue();
+
 					try {
-						entry.getValue().close();
+						writer.close();
 					} catch (IOException e) {
-						LOGGER.error("");
+						LOGGER.error("CategoryWriter " + writer.getPath() + " close error: "
+								+ ExceptionUtils.getFullStackTrace(e));
 					}
 				}
+
+				writers.clear();
 			}
 		}
 

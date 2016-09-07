@@ -23,6 +23,7 @@ import org.apache.flume.EventDrivenSource;
 import org.apache.flume.channel.ChannelProcessor;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.event.EventBuilder;
+import org.apache.flume.lifecycle.LifecycleState;
 import org.apache.flume.source.AbstractSource;
 import org.apache.flume.source.kafka.KafkaSourceConstants;
 import org.apache.flume.source.kafka.KafkaSourceUtil;
@@ -192,6 +193,10 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	@Override
 	public synchronized void stop() {
+		if (getLifecycleState() == LifecycleState.STOP) {
+			return;
+		}
+
 		consumer.shutdown();
 
 		executor.shutdown();

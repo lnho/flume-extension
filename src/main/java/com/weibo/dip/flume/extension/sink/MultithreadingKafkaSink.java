@@ -22,6 +22,7 @@ import org.apache.flume.EventDeliveryException;
 import org.apache.flume.Transaction;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.instrumentation.kafka.KafkaSinkCounter;
+import org.apache.flume.lifecycle.LifecycleState;
 import org.apache.flume.sink.AbstractSink;
 import org.apache.flume.sink.kafka.KafkaSink;
 import org.apache.flume.sink.kafka.KafkaSinkConstants;
@@ -197,6 +198,10 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 	@Override
 	public synchronized void stop() {
+		if (getLifecycleState() == LifecycleState.STOP) {
+			return;
+		}
+
 		consumerStoped = true;
 
 		executor.shutdown();
