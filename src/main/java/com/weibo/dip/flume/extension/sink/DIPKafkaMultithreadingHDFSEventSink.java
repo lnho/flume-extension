@@ -106,6 +106,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		@Override
 		public void run() {
+			LOGGER.info("Sinker " + Thread.currentThread().getName() + " started");
+
 			while (!sinkStoped) {
 				Channel channel = getChannel();
 
@@ -165,6 +167,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 					transaction.close();
 				}
 			}
+
+			LOGGER.info("Sinker " + Thread.currentThread().getName() + " stoped");
 		}
 
 	}
@@ -219,6 +223,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		@Override
 		public void run() {
+			LOGGER.info("Roller " + Thread.currentThread().getName() + " started");
+
 			while (!rollStoped) {
 				try {
 					// five minutes
@@ -259,6 +265,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 					}
 				}
 			}
+
+			LOGGER.info("Roller " + Thread.currentThread().getName() + " stoped");
 		}
 
 	}
