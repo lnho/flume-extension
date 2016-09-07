@@ -292,12 +292,13 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		writers = new HashMap<>();
 
-		rollStoped = false;
-
-		rollers = Executors.newSingleThreadExecutor(
-				new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() + "-roll-roller-%d").build());
-
-		rollers.submit(new Roller());
+		// rollStoped = false;
+		//
+		// rollers = Executors.newSingleThreadExecutor(
+		// new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() +
+		// "-roll-roller-%d").build());
+		//
+		// rollers.submit(new Roller());
 
 		sinkStoped = false;
 
@@ -318,16 +319,16 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	@Override
 	public synchronized void stop() {
-		rollStoped = true;
-
-		rollers.shutdownNow();
-
-		while (!rollers.isTerminated()) {
-			try {
-				rollers.awaitTermination(1, TimeUnit.SECONDS);
-			} catch (InterruptedException e) {
-			}
-		}
+		// rollStoped = true;
+		//
+		// rollers.shutdownNow();
+		//
+		// while (!rollers.isTerminated()) {
+		// try {
+		// rollers.awaitTermination(1, TimeUnit.SECONDS);
+		// } catch (InterruptedException e) {
+		// }
+		// }
 
 		sinkStoped = true;
 
