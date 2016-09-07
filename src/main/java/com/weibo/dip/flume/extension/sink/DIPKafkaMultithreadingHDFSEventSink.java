@@ -224,6 +224,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 					// five minutes
 					Thread.sleep(fiveMinutes);
 				} catch (InterruptedException e) {
+					LOGGER.warn("Roller has been interrupted");
 				}
 
 				synchronized (writers) {
@@ -309,7 +310,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 	public synchronized void stop() {
 		rollStoped = true;
 
-		rollers.shutdown();
+		rollers.shutdownNow();
 
 		while (!rollers.isTerminated()) {
 			try {
