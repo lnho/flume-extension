@@ -211,6 +211,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		@Override
 		public void close() throws IOException {
+			LOGGER.info("yurun $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
 			if (writer != null) {
 				writer.close();
 			}
