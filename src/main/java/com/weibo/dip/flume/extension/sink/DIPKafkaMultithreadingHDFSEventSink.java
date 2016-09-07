@@ -19,6 +19,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.CharEncoding;
 import org.apache.commons.lang.exception.ExceptionUtils;
@@ -45,9 +46,17 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(DIPKafkaMultithreadingHDFSEventSink.class);
 
+	private static final String DIRECTORY_SEPARATOR = "/";
+
+	private static final String FILENAME_SEPARATOR = "-";
+
 	private FileSystem fileSystem;
 
 	private int threads;
+
+	private boolean rollStoped;
+
+	private ExecutorService rollers;
 
 	private ExecutorService sinkers;
 
@@ -60,10 +69,6 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 	private Map<String, CategoryWriter> writers;
 
 	private class Sinker implements Runnable {
-
-		private static final String DIRECTORY_SEPARATOR = "/";
-
-		private static final String FILENAME_SEPARATOR = "-";
 
 		private SimpleDateFormat directoryDateFormat = new SimpleDateFormat("yyyy_MM_dd/HH");
 
@@ -142,8 +147,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 							writer = writers.get(lookupPath);
 
 							if (writer == null) {
-								writer = new CategoryWriter(
-										lookupPath + FILENAME_SEPARATOR + System.currentTimeMillis());
+								writer = new CategoryWriter(lookupPath);
 
 								writers.put(lookupPath, writer);
 							}
@@ -167,10 +171,29 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	private class CategoryWriter implements Closeable {
 
+		private String path;
+
+		private long createTime;
+
 		private BufferedWriter writer;
 
 		public CategoryWriter(String path) throws UnsupportedEncodingException, IllegalArgumentException, IOException {
-			writer = new BufferedWriter(new OutputStreamWriter(fileSystem.create(new Path(path)), CharEncoding.UTF_8));
+			this.path = path + FILENAME_SEPARATOR + createTime;
+
+			createTime = System.currentTimeMillis();
+
+			writer = new BufferedWriter(
+					new OutputStreamWriter(fileSystem.create(new Path(this.path)), CharEncoding.UTF_8));
+
+			LOGGER.info("CategoryWriter " + this.path + " created success");
+		}
+
+		public String getPath() {
+			return path;
+		}
+
+		public long getCreateTime() {
+			return createTime;
 		}
 
 		public synchronized void write(List<Event> events) throws UnsupportedEncodingException, IOException {
@@ -190,6 +213,55 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	}
 
+	private class Roller implements Runnable {
+
+		private long fiveMinutes = 5 * 60 * 1000;
+
+		@Override
+		public void run() {
+			while (!rollStoped) {
+				try {
+					// five minutes
+					Thread.sleep(fiveMinutes);
+				} catch (InterruptedException e) {
+				}
+
+				synchronized (writers) {
+					if (MapUtils.isNotEmpty(writers)) {
+						long now = System.currentTimeMillis();
+
+						List<String> rollLookupPaths = new ArrayList<>();
+
+						for (Entry<String, CategoryWriter> entry : writers.entrySet()) {
+							String lookupPath = entry.getKey();
+							CategoryWriter writer = entry.getValue();
+
+							if (now - writer.getCreateTime() >= fiveMinutes) {
+								rollLookupPaths.add(lookupPath);
+							}
+						}
+
+						if (CollectionUtils.isNotEmpty(rollLookupPaths)) {
+							for (String rollLookupPath : rollLookupPaths) {
+								CategoryWriter writer = writers.remove(rollLookupPath);
+
+								try {
+									writer.close();
+
+									LOGGER.info("CategoryWriter " + writer.getPath() + " rolled success");
+								} catch (IOException e) {
+									LOGGER.info("CategoryWriter " + writer.getPath() + " close error: "
+											+ ExceptionUtils.getFullStackTrace(e));
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+	}
+
 	@Override
 	public void configure(Context context) {
 		rootDirectory = context.getString("rootDirectory", "/tmp/");
@@ -197,9 +269,6 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 		batchSize = context.getInteger("batchSize", 1000);
 
 		threads = context.getInteger("threads", 1);
-
-		sinkers = Executors.newFixedThreadPool(threads,
-				new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() + "-sink-sinker-%d").build());
 	}
 
 	@Override
@@ -212,7 +281,17 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		writers = new HashMap<>();
 
+		rollStoped = false;
+
+		rollers = Executors.newSingleThreadExecutor(
+				new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() + "-roll-roller-%d").build());
+
+		rollers.submit(new Roller());
+
 		sinkStoped = false;
+
+		sinkers = Executors.newFixedThreadPool(threads,
+				new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() + "-sink-sinker-%d").build());
 
 		for (int index = 0; index < threads; index++) {
 			sinkers.submit(new Sinker());
@@ -228,6 +307,17 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	@Override
 	public synchronized void stop() {
+		rollStoped = true;
+
+		rollers.shutdown();
+
+		while (!rollers.isTerminated()) {
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+			}
+		}
+
 		sinkStoped = true;
 
 		sinkers.shutdown();
