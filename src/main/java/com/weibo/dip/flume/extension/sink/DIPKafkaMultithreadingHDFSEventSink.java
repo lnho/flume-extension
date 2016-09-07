@@ -56,10 +56,6 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	private int threads;
 
-	private boolean rollStoped;
-
-	private ExecutorService rollers;
-
 	private ExecutorService sinkers;
 
 	private boolean sinkStoped;
@@ -68,7 +64,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 	private int batchSize;
 
-	private Map<String, CategoryWriter> writers;
+	private CategoryWriters writers;
 
 	private class Sinker implements Runnable {
 
@@ -145,19 +141,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 						String lookupPath = entry.getKey();
 						List<Event> events = entry.getValue();
 
-						CategoryWriter writer = null;
-
-						synchronized (writers) {
-							writer = writers.get(lookupPath);
-
-							if (writer == null) {
-								writer = new CategoryWriter(lookupPath);
-
-								writers.put(lookupPath, writer);
-							}
-						}
-
-						writer.write(events);
+						writers.write(lookupPath, events);
 					}
 
 					transaction.commit();
@@ -171,6 +155,91 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 			}
 
 			LOGGER.info("Sinker " + Thread.currentThread().getName() + " stoped");
+		}
+
+	}
+
+	private class CategoryWriters implements Closeable {
+
+		private long lastRollTime = System.currentTimeMillis();
+
+		private long fiveMinutes = 5 * 60 * 1000;
+
+		private Map<String, CategoryWriter> writers = new HashMap<>();
+
+		public void write(String lookupPath, List<Event> events)
+				throws UnsupportedEncodingException, IllegalArgumentException, IOException {
+			CategoryWriter writer = null;
+
+			synchronized (writers) {
+				long now = System.currentTimeMillis();
+
+				if (now - lastRollTime >= fiveMinutes) {
+					roll(now);
+
+					lastRollTime = now;
+				}
+
+				writer = writers.get(lookupPath);
+
+				if (writer == null) {
+					writer = new CategoryWriter(lookupPath);
+
+					writers.put(lookupPath, writer);
+				}
+			}
+
+			writer.write(events);
+		}
+
+		public void roll(long now) throws IOException {
+			if (MapUtils.isEmpty(writers)) {
+				return;
+			}
+
+			List<String> rollLookupPaths = new ArrayList<>();
+
+			for (Entry<String, CategoryWriter> entry : writers.entrySet()) {
+				String lookupPath = entry.getKey();
+				CategoryWriter writer = entry.getValue();
+
+				if (now - writer.getCreateTime() >= fiveMinutes) {
+					rollLookupPaths.add(lookupPath);
+				}
+			}
+
+			if (CollectionUtils.isNotEmpty(rollLookupPaths)) {
+				for (String rollLookupPath : rollLookupPaths) {
+					CategoryWriter writer = writers.remove(rollLookupPath);
+
+					try {
+						writer.close();
+
+						LOGGER.info("CategoryWriter " + writer.getPath() + " rolled success");
+					} catch (IOException e) {
+						LOGGER.info("CategoryWriter " + writer.getPath() + " close(rolled) error: "
+								+ ExceptionUtils.getFullStackTrace(e));
+					}
+				}
+			}
+		}
+
+		@Override
+		public void close() throws IOException {
+			if (MapUtils.isEmpty(writers)) {
+				return;
+			}
+
+			for (Entry<String, CategoryWriter> entry : writers.entrySet()) {
+				CategoryWriter writer = entry.getValue();
+
+				try {
+					writer.close();
+				} catch (Exception e) {
+					LOGGER.error("CategoryWriter " + writer.getPath() + " close error: "
+							+ ExceptionUtils.getFullStackTrace(e));
+				}
+			}
 		}
 
 	}
@@ -212,64 +281,9 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		@Override
 		public void close() throws IOException {
-			LOGGER.info("yurun $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
 			if (writer != null) {
 				writer.close();
 			}
-		}
-
-	}
-
-	private class Roller implements Runnable {
-
-		private long fiveMinutes = 5 * 60 * 1000;
-
-		@Override
-		public void run() {
-			LOGGER.info("Roller " + Thread.currentThread().getName() + " started");
-
-			while (!rollStoped) {
-				try {
-					// five minutes
-					Thread.sleep(fiveMinutes);
-				} catch (InterruptedException e) {
-					LOGGER.warn("Roller has been interrupted");
-				}
-
-				synchronized (writers) {
-					if (MapUtils.isNotEmpty(writers)) {
-						long now = System.currentTimeMillis();
-
-						List<String> rollLookupPaths = new ArrayList<>();
-
-						for (Entry<String, CategoryWriter> entry : writers.entrySet()) {
-							String lookupPath = entry.getKey();
-							CategoryWriter writer = entry.getValue();
-
-							if (now - writer.getCreateTime() >= fiveMinutes) {
-								rollLookupPaths.add(lookupPath);
-							}
-						}
-
-						if (CollectionUtils.isNotEmpty(rollLookupPaths)) {
-							for (String rollLookupPath : rollLookupPaths) {
-								CategoryWriter writer = writers.remove(rollLookupPath);
-
-								try {
-									writer.close();
-
-									LOGGER.info("CategoryWriter " + writer.getPath() + " rolled success");
-								} catch (IOException e) {
-									LOGGER.info("CategoryWriter " + writer.getPath() + " close(rolled) error: "
-											+ ExceptionUtils.getFullStackTrace(e));
-								}
-							}
-						}
-					}
-				}
-			}
-
-			LOGGER.info("Roller " + Thread.currentThread().getName() + " stoped");
 		}
 
 	}
@@ -291,14 +305,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 			LOGGER.error("fileSystem get error: " + ExceptionUtils.getFullStackTrace(e));
 		}
 
-		writers = new HashMap<>();
-
-		rollStoped = false;
-
-		rollers = Executors.newSingleThreadExecutor(
-				new ThreadFactoryBuilder().setNameFormat("hdfs-" + getName() + "-roll-roller-%d").build());
-
-		rollers.submit(new Roller());
+		writers = new CategoryWriters();
 
 		sinkStoped = false;
 
@@ -323,17 +330,6 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 			return;
 		}
 
-		rollStoped = true;
-
-		rollers.shutdownNow();
-
-		while (!rollers.isTerminated()) {
-			try {
-				rollers.awaitTermination(1, TimeUnit.SECONDS);
-			} catch (InterruptedException e) {
-			}
-		}
-
 		sinkStoped = true;
 
 		sinkers.shutdown();
@@ -345,21 +341,10 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 			}
 		}
 
-		synchronized (writers) {
-			if (MapUtils.isNotEmpty(writers)) {
-				for (Entry<String, CategoryWriter> entry : writers.entrySet()) {
-					CategoryWriter writer = entry.getValue();
-
-					try {
-						writer.close();
-					} catch (IOException e) {
-						LOGGER.error("CategoryWriter " + writer.getPath() + " close error: "
-								+ ExceptionUtils.getFullStackTrace(e));
-					}
-				}
-
-				writers.clear();
-			}
+		try {
+			writers.close();
+		} catch (IOException e) {
+			LOGGER.error("CategoryWriters close error: " + ExceptionUtils.getFullStackTrace(e));
 		}
 
 		super.stop();
