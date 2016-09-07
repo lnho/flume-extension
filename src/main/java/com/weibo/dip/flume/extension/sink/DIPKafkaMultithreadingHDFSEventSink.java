@@ -260,7 +260,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 									LOGGER.info("CategoryWriter " + writer.getPath() + " rolled success");
 								} catch (IOException e) {
-									LOGGER.info("CategoryWriter " + writer.getPath() + " close error: "
+									LOGGER.info("CategoryWriter " + writer.getPath() + " close(rolled) error: "
 											+ ExceptionUtils.getFullStackTrace(e));
 								}
 							}
