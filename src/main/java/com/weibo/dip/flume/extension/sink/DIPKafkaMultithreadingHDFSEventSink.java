@@ -167,8 +167,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		private Map<String, CategoryWriter> writers = new HashMap<>();
 
-		public void write(String lookupPath, List<Event> events)
-				throws UnsupportedEncodingException, IllegalArgumentException, IOException {
+		public void write(String lookupPath, List<Event> events) throws IOException {
 			CategoryWriter writer = null;
 
 			synchronized (writers) {
@@ -189,7 +188,12 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 				}
 			}
 
-			writer.write(events);
+			try {
+				writer.write(events);
+			} catch (Exception e) {
+				LOGGER.error(
+						"CategoryWriter " + writer.getPath() + " write error: " + ExceptionUtils.getFullStackTrace(e));
+			}
 		}
 
 		public void roll(long now) throws IOException {
