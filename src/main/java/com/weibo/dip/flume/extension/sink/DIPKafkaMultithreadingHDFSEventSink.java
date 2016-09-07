@@ -98,8 +98,8 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 			String hostname = headers.get("hostname");
 
 			return rootDirectory + category + DIRECTORY_SEPARATOR + getDirectory(timestamp) + DIRECTORY_SEPARATOR
-					+ category + FILENAME_SEPARATOR + hostname + getFilename(timestamp) + FILENAME_SEPARATOR
-					+ getFiveMinute(timestamp);
+					+ category + FILENAME_SEPARATOR + hostname + FILENAME_SEPARATOR + getFilename(timestamp)
+					+ FILENAME_SEPARATOR + getFiveMinute(timestamp);
 		}
 
 		@Override
@@ -248,7 +248,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		private String path;
 
-		private long createTime;
+		private long createTime = System.currentTimeMillis();
 
 		private BufferedWriter writer;
 
