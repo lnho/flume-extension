@@ -163,7 +163,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		private long lastRollTime = System.currentTimeMillis();
 
-		private long fiveMinutes = 5 * 60 * 1000;
+		private long fiveMinutes = 1 * 60 * 1000;
 
 		private Map<String, CategoryWriter> writers = new HashMap<>();
 
