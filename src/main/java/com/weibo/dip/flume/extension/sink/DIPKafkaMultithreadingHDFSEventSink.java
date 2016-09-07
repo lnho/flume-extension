@@ -334,7 +334,7 @@ public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements
 
 		while (!sinkers.isTerminated()) {
 			try {
-				rollers.awaitTermination(1, TimeUnit.SECONDS);
+				sinkers.awaitTermination(1, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 			}
 		}
