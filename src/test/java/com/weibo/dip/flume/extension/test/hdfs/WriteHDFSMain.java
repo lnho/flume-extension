@@ -10,12 +10,16 @@ import java.io.OutputStreamWriter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author yurun
  *
  */
 public class WriteHDFSMain {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(WriteHDFSMain.class);
 
 	public static void main(String[] args) throws IOException {
 		Configuration conf = new Configuration();
@@ -26,19 +30,34 @@ public class WriteHDFSMain {
 
 		String line = "_accesskey=sinaedgeahsolci14ydn&_ip=221.182.130.57&_port=80&_an=221.182.130.57&_data=d7.sina.com.cn 111.58.151.80 0 TCP_IMS_HIT [29/Aug/2016:00:59:42 +0800] \"GET /pfpghc2/201608/10/c2a4db4ca881411f86477f2febf4e201.jpg HTTP/0.0\" 304 0 \"http://news.sina.cn/sh?vt=4&pos=108\" \"-\" \"-\" \"Mozilla/5.0 (Linux; U; Android 4.3; zh-CN; HUAWEI C8816D Build/HuaweiC8816D) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 UCBrowser/10.9.10.788 U3/0.8.0 Mobile Safari/534.30\" *Not IP address [0]*";
 
-		long index = 0;
+		boolean flag = false;
 
-		long length = Long.MAX_VALUE;
-
-		while (++index <= length) {
+		while (!flag) {
 			writer.write(line);
 
-			if (index % 10 == 0) {
-				writer.flush();
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
 			}
 		}
 
 		writer.close();
+
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+
+			@Override
+			public void run() {
+				LOGGER.info("shutdown starting...");
+
+				try {
+					Thread.sleep(30 * 1000);
+				} catch (InterruptedException e) {
+				}
+
+				LOGGER.info("shutdown stoped");
+			}
+
+		});
 	}
 
 }
