@@ -55,7 +55,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private ConsumerConnector consumerConnector;
 
-	private ExecutorService consumers;
+	private ExecutorService sourcers;
 
 	@Override
 	public void configure(Context context) {
@@ -86,11 +86,13 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		LOGGER.info("kafkaProps: " + kafkaProps);
 	}
 
-	private class KafkaConsumer implements Runnable {
+	private class KafkaSourcer implements Runnable {
+
+		private String sourcerName = Thread.currentThread().getName();
 
 		private KafkaStream<byte[], byte[]> stream;
 
-		public KafkaConsumer(KafkaStream<byte[], byte[]> stream) {
+		public KafkaSourcer(KafkaStream<byte[], byte[]> stream) {
 			this.stream = stream;
 		}
 
@@ -101,16 +103,14 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 					events.clear();
 				} catch (Exception e) {
-					LOGGER.error("KafkaConsumer flush error: " + ExceptionUtils.getFullStackTrace(e));
+					LOGGER.error(sourcerName + " flush error: " + ExceptionUtils.getFullStackTrace(e));
 				}
 			}
 		}
 
 		@Override
 		public void run() {
-			String consumerName = Thread.currentThread().getName();
-
-			LOGGER.info(consumerName + " starting...");
+			LOGGER.info(sourcerName + " starting...");
 
 			try {
 				ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
@@ -144,10 +144,10 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 				flush(events);
 			} catch (Throwable e) {
-				LOGGER.error(consumerName + " consume error: " + ExceptionUtils.getFullStackTrace(e));
+				LOGGER.error(sourcerName + " consume error: " + ExceptionUtils.getFullStackTrace(e));
 			}
 
-			LOGGER.info(consumerName + " stoped");
+			LOGGER.info(sourcerName + " stoped");
 		}
 
 	}
@@ -156,27 +156,23 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 	public synchronized void start() {
 		LOGGER.info(getName() + " starting...");
 
-		try {
-			consumerConnector = KafkaSourceUtil.getConsumer(kafkaProps);
+		consumerConnector = KafkaSourceUtil.getConsumer(kafkaProps);
 
-			TopicFilter topicFilter = new Whitelist(topics);
+		TopicFilter topicFilter = new Whitelist(topics);
 
-			List<KafkaStream<byte[], byte[]>> streams = consumerConnector.createMessageStreamsByFilter(topicFilter,
-					threads);
+		List<KafkaStream<byte[], byte[]>> streams = consumerConnector.createMessageStreamsByFilter(topicFilter,
+				threads);
 
-			consumers = Executors.newFixedThreadPool(threads,
-					new ThreadFactoryBuilder().setNameFormat("kafka-" + getName() + "-consume-consumer-%d").build());
+		sourcers = Executors.newFixedThreadPool(threads,
+				new ThreadFactoryBuilder().setNameFormat("kafka-" + getName() + "-source-sourcer-%d").build());
 
-			for (KafkaStream<byte[], byte[]> stream : streams) {
-				consumers.submit(new KafkaConsumer(stream));
-			}
-
-			super.start();
-
-			LOGGER.info(getName() + "started");
-		} catch (Exception e) {
-			LOGGER.error(getName() + " start error: " + ExceptionUtils.getFullStackTrace(e));
+		for (KafkaStream<byte[], byte[]> stream : streams) {
+			sourcers.submit(new KafkaSourcer(stream));
 		}
+
+		super.start();
+
+		LOGGER.info(getName() + "started");
 	}
 
 	@Override
@@ -185,9 +181,9 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		consumerConnector.shutdown();
 
-		consumers.shutdown();
+		sourcers.shutdown();
 
-		while (!consumers.isTerminated()) {
+		while (!sourcers.isTerminated()) {
 			try {
 				this.wait(1000);
 			} catch (InterruptedException e) {

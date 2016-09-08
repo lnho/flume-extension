@@ -83,13 +83,13 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 	public class Sinker implements Runnable {
 
+		private String sinkerName = Thread.currentThread().getName();
+
 		private List<KeyedMessage<String, byte[]>> messageList = new ArrayList<>();
 
 		@Override
 		public void run() {
-			String sinkName = Thread.currentThread().getName();
-
-			LOGGER.info(sinkName + " started");
+			LOGGER.info(sinkerName + " started");
 
 			Producer<String, byte[]> producer = null;
 
@@ -152,7 +152,7 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 							}
 						}
 					} catch (Exception e) {
-						LOGGER.error(sinkName + " failed to send events: {}", ExceptionUtils.getFullStackTrace(e));
+						LOGGER.error(sinkerName + " failed to send events: {}", ExceptionUtils.getFullStackTrace(e));
 
 						transaction.rollback();
 					} finally {
@@ -160,14 +160,14 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 					}
 				}
 			} catch (Exception e) {
-				LOGGER.error(sinkName + " sink error: " + ExceptionUtils.getFullStackTrace(e));
+				LOGGER.error(sinkerName + " sink error: " + ExceptionUtils.getFullStackTrace(e));
 			} finally {
 				if (producer != null) {
 					producer.close();
 				}
 			}
 
-			LOGGER.info(sinkName + " stoped");
+			LOGGER.info(sinkerName + " stoped");
 		}
 
 	}
@@ -195,7 +195,7 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 	@Override
 	public synchronized void stop() {
-		LOGGER.info(getName() + " starting...");
+		LOGGER.info(getName() + " stoping...");
 
 		sinkStoped = true;
 
