@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
@@ -192,7 +191,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		while (!executor.isTerminated()) {
 			try {
-				executor.awaitTermination(1, TimeUnit.SECONDS);
+				executor.wait(1000);
 			} catch (InterruptedException e) {
 			}
 		}
