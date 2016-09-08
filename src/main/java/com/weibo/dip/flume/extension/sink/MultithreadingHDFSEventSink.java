@@ -44,9 +44,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  * @author yurun
  *
  */
-public class DIPKafkaMultithreadingHDFSEventSink extends AbstractSink implements Configurable {
+public class MultithreadingHDFSEventSink extends AbstractSink implements Configurable {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(DIPKafkaMultithreadingHDFSEventSink.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(MultithreadingHDFSEventSink.class);
 
 	private static final String DIRECTORY_SEPARATOR = "/";
 
