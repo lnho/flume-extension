@@ -6,6 +6,9 @@ package com.weibo.dip.flume.extension.test.hdfs;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -83,9 +86,9 @@ public class WriteHDFSMain {
 	}
 
 	public static void main(String[] args) throws IOException {
-		Writer writer = new Writer();
+		ExecutorService executor = Executors.newSingleThreadExecutor();
 
-		writer.start();
+		executor.submit(new Writer());
 
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 
@@ -93,11 +96,13 @@ public class WriteHDFSMain {
 			public void run() {
 				LOGGER.info("shutdown starting...");
 
-				writer.setStop(true);
+				executor.shutdown();
 
-				try {
-					Thread.sleep(10 * 1000);
-				} catch (InterruptedException e) {
+				while (!executor.isTerminated()) {
+					try {
+						executor.awaitTermination(1, TimeUnit.SECONDS);
+					} catch (InterruptedException e) {
+					}
 				}
 
 				LOGGER.info("shutdown stoped");
