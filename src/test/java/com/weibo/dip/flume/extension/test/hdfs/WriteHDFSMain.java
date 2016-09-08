@@ -35,6 +35,8 @@ public class WriteHDFSMain {
 		while (!flag) {
 			writer.write(line);
 
+			LOGGER.info("write: " + line);
+
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
