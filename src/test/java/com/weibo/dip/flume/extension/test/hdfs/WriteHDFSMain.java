@@ -53,6 +53,25 @@ public class WriteHDFSMain {
 
 				writer.write(line);
 
+				try {
+					Thread.sleep(3000);
+				} catch (InterruptedException e) {
+				}
+
+				writer.write(line);
+
+				try {
+					Thread.sleep(3000);
+				} catch (InterruptedException e) {
+				}
+
+				writer.write(line);
+
+				try {
+					Thread.sleep(3000);
+				} catch (InterruptedException e) {
+				}
+
 				writer.close();
 
 				LOGGER.info("Writer stoped");
