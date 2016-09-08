@@ -47,7 +47,7 @@ public class WriteHDFSMain {
 				while (!stop) {
 					writer.write(line);
 
-					LOGGER.info("write: " + line);
+					// LOGGER.info("write: " + line);
 
 					try {
 						Thread.sleep(5000);
