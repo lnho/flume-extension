@@ -208,7 +208,7 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 		while (!executor.isTerminated()) {
 			try {
-				executor.wait(1000);
+				this.wait(1000);
 			} catch (InterruptedException e) {
 			}
 		}

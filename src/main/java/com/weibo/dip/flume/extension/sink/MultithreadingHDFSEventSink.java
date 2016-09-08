@@ -462,7 +462,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 		while (!sinkers.isTerminated()) {
 			try {
-				sinkers.wait(1000);
+				this.wait(1000);
 			} catch (InterruptedException e) {
 			}
 		}
