@@ -8,6 +8,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -23,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.CharEncoding;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Channel;
 import org.apache.flume.Context;
@@ -38,6 +41,7 @@ import org.apache.hadoop.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
@@ -54,33 +58,45 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	private FileSystem fileSystem;
 
-	private int threads;
-
 	private ExecutorService sinkers;
 
 	private boolean sinkStoped;
 
+	private String hostname;
+
 	private String rootDirectory;
 
+	private String timePartition;
+
+	private int threads;
+
 	private int batchSize;
+
+	private String categoryHeaderName;
+
+	private boolean useLocaltime;
+
+	private String timestampHeaderName;
+
+	private long rollTime;
 
 	private CategoryWriters writers;
 
 	private class Sinker implements Runnable {
 
-		private SimpleDateFormat directoryDateFormat = new SimpleDateFormat("yyyy_MM_dd/HH");
+		private SimpleDateFormat directoryDateFormat = new SimpleDateFormat(timePartition);
 
 		private SimpleDateFormat filenameDateFormat = new SimpleDateFormat("yyyyMMddHH");
 
-		private String getDirectory(String timestamp) {
+		private String getDirectory(String timestamp) throws NumberFormatException {
 			return directoryDateFormat.format(new Date(Long.valueOf(timestamp)));
 		}
 
-		private String getFilename(String timestamp) {
+		private String getFilename(String timestamp) throws NumberFormatException {
 			return filenameDateFormat.format(new Date(Long.valueOf(timestamp)));
 		}
 
-		private String getFiveMinute(String timestamp) {
+		private String getFiveMinute(String timestamp) throws NumberFormatException {
 			Calendar calendar = Calendar.getInstance();
 
 			calendar.setTimeInMillis(Long.valueOf(timestamp));
@@ -88,14 +104,24 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 			return String.format("%02d", calendar.get(Calendar.MINUTE) / 5);
 		}
 
-		private String getLookupPath(Event event) {
+		private String getLookupPath(Event event) throws Exception {
 			Map<String, String> headers = event.getHeaders();
 
-			String category = headers.get("topic");
+			String category = headers.get(categoryHeaderName);
 
-			String timestamp = headers.get("timestamp");
+			Preconditions.checkState(StringUtils.isNotEmpty(category),
+					"category is empty, categoryHeaderName may be wrong, check");
 
-			String hostname = headers.get("hostname");
+			String timestamp = null;
+
+			if (useLocaltime) {
+				timestamp = String.valueOf(System.currentTimeMillis());
+			} else {
+				timestamp = headers.get(timestampHeaderName);
+
+				Preconditions.checkState(StringUtils.isNotEmpty(category),
+						"timestamp is empty, timestampHeaderName may be wrong, check");
+			}
 
 			return rootDirectory + category + DIRECTORY_SEPARATOR + getDirectory(timestamp) + DIRECTORY_SEPARATOR
 					+ category + FILENAME_SEPARATOR + hostname + FILENAME_SEPARATOR + getFilename(timestamp)
@@ -104,7 +130,9 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 		@Override
 		public void run() {
-			LOGGER.info("Sinker " + Thread.currentThread().getName() + " started");
+			String sinkName = Thread.currentThread().getName();
+
+			LOGGER.info(sinkName + " started");
 
 			while (!sinkStoped) {
 				Channel channel = getChannel();
@@ -114,9 +142,9 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				transaction.begin();
 
 				try {
-					int txnEventCount = 0;
-
 					Map<String, List<Event>> lookupPathEvents = new HashMap<>();
+
+					int txnEventCount = 0;
 
 					for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
 						Event event = channel.take();
@@ -146,7 +174,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 					transaction.commit();
 				} catch (Exception e) {
-					LOGGER.error("Sinker write error: " + ExceptionUtils.getFullStackTrace(e));
+					LOGGER.error(sinkName + " write error: " + ExceptionUtils.getFullStackTrace(e));
 
 					transaction.rollback();
 				} finally {
@@ -154,14 +182,12 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				}
 			}
 
-			LOGGER.info("Sinker " + Thread.currentThread().getName() + " stoped");
+			LOGGER.info(sinkName + " stoped");
 		}
 
 	}
 
 	private class CategoryWriters implements Closeable {
-
-		private long fiveMinutes = 5 * 60 * 1000;
 
 		private Map<String, CategoryWriter> writers = new HashMap<>();
 
@@ -180,7 +206,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 			public void run() {
 				while (!rollStop) {
 					try {
-						Thread.sleep(fiveMinutes);
+						Thread.sleep(rollTime);
 					} catch (InterruptedException e) {
 						break;
 					}
@@ -203,7 +229,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 						String lookupPath = entry.getKey();
 						CategoryWriter writer = entry.getValue();
 
-						if (now - writer.getCreateTime() >= fiveMinutes) {
+						if (now - writer.getCreateTime() >= rollTime) {
 							rollLookupPaths.add(lookupPath);
 						}
 					}
@@ -215,7 +241,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 							try {
 								writer.close();
 
-								LOGGER.info("CategoryWriter " + writer.getPath() + " rolled success");
+								LOGGER.info("CategoryWriter " + writer.getPath() + " closed(rolled)");
 							} catch (IOException e) {
 								LOGGER.info("CategoryWriter " + writer.getPath() + " close(rolled) error: "
 										+ ExceptionUtils.getFullStackTrace(e));
@@ -257,7 +283,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 						try {
 							writer.write(events);
 						} catch (Exception se) {
-							LOGGER.error("CategoryWriter " + writer.getPath() + " write error: "
+							LOGGER.error("CategoryWriter " + writer.getPath() + " write(retry) error: "
 									+ ExceptionUtils.getFullStackTrace(se));
 
 							throw new IOException(se);
@@ -313,19 +339,19 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 		private String path;
 
-		private long createTime = System.currentTimeMillis();
+		private long createTime;
 
 		private BufferedWriter writer;
 
 		public CategoryWriter(String path) throws UnsupportedEncodingException, IllegalArgumentException, IOException {
-			this.path = path + FILENAME_SEPARATOR + createTime;
+			this.createTime = System.currentTimeMillis();
 
-			createTime = System.currentTimeMillis();
+			this.path = path + FILENAME_SEPARATOR + createTime;
 
 			writer = new BufferedWriter(
 					new OutputStreamWriter(fileSystem.create(new Path(this.path)), CharEncoding.UTF_8));
 
-			LOGGER.info("CategoryWriter " + this.path + " created success");
+			LOGGER.info("CategoryWriter " + this.path + " created");
 		}
 
 		public String getPath() {
@@ -336,7 +362,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 			return createTime;
 		}
 
-		public void checkOpen() throws IOException {
+		private void checkOpen() throws IOException {
 			if (writer == null) {
 				throw new AlreadyClosedException();
 			}
@@ -365,11 +391,36 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	@Override
 	public void configure(Context context) {
+		try {
+			hostname = InetAddress.getLocalHost().getHostName();
+		} catch (UnknownHostException e) {
+			LOGGER.error("get hostname error: " + ExceptionUtils.getFullStackTrace(e));
+		}
+
+		Preconditions.checkState(StringUtils.isNotEmpty(hostname), "hostname may get error, check");
+
 		rootDirectory = context.getString("rootDirectory", "/tmp/");
+
+		timePartition = context.getString("timePartition", "yyyy_MM_dd/HH");
+
+		threads = context.getInteger("threads", 1);
 
 		batchSize = context.getInteger("batchSize", 1000);
 
-		threads = context.getInteger("threads", 1);
+		categoryHeaderName = context.getString("categoryHeaderName");
+
+		Preconditions.checkState(StringUtils.isNotEmpty(categoryHeaderName), "categoryHeaderName must be specified");
+
+		useLocaltime = context.getBoolean("useLocaltime", false);
+
+		if (!useLocaltime) {
+			timestampHeaderName = context.getString("timestampHeaderName");
+
+			Preconditions.checkState(StringUtils.isNotEmpty(timestampHeaderName),
+					"timestampHeaderName must be specified, because of useLocaltime is false");
+		}
+
+		rollTime = context.getLong("rollTime", 300000L);
 	}
 
 	@Override

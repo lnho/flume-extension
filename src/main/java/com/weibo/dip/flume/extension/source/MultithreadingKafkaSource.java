@@ -3,8 +3,6 @@
  */
 package com.weibo.dip.flume.extension.source;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,8 +55,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private Properties kafkaProps;
 
-	private String hostname;
-
 	private ConsumerConnector consumer;
 
 	private ExecutorService executor = Executors.newCachedThreadPool();
@@ -82,12 +78,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		kafkaProps.put(KafkaSourceConstants.AUTO_COMMIT_ENABLED, "true");
 		kafkaProps.put(KafkaSourceConstants.CONSUMER_TIMEOUT, "-1");
-
-		try {
-			hostname = InetAddress.getLocalHost().getHostName();
-		} catch (UnknownHostException e) {
-			throw new RuntimeException(e);
-		}
 	}
 
 	private class KafkaConsumer implements Runnable {
@@ -143,7 +133,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 					headers.put(KafkaSourceConstants.TOPIC, messageAndMetadata.topic());
 					headers.put(KafkaSourceConstants.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
-					headers.put("hostname", hostname);
 
 					if (LOGGER.isDebugEnabled()) {
 						LOGGER.debug("Message: " + new String(kafkaMessage) + ", Headers: " + headers);
