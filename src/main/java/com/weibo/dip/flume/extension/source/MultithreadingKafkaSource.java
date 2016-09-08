@@ -17,10 +17,8 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
 import org.apache.flume.EventDrivenSource;
-import org.apache.flume.channel.ChannelProcessor;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.event.EventBuilder;
-import org.apache.flume.lifecycle.LifecycleState;
 import org.apache.flume.source.AbstractSource;
 import org.apache.flume.source.kafka.KafkaSourceConstants;
 import org.apache.flume.source.kafka.KafkaSourceUtil;
@@ -28,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import kafka.consumer.ConsumerIterator;
 import kafka.consumer.KafkaStream;
@@ -54,13 +53,19 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private Properties kafkaProps;
 
-	private ConsumerConnector consumer;
+	private ConsumerConnector consumerConnector;
 
-	private ExecutorService executor = Executors.newCachedThreadPool();
+	private ExecutorService consumers;
 
 	@Override
 	public void configure(Context context) {
-		topics = context.getString("topics").replaceAll(",", "|");
+		String[] topicNames = context.getString("topics", "").split(",");
+
+		for (int index = 0; index < topicNames.length; index++) {
+			topicNames[index] = topicNames[index].trim();
+		}
+
+		topics = StringUtils.join(topicNames, "|");
 
 		Preconditions.checkState(StringUtils.isNotEmpty(topics), "topics's value must not be empty");
 
@@ -74,32 +79,20 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 				KafkaSourceConstants.DEFAULT_BATCH_DURATION);
 
 		kafkaProps = KafkaSourceUtil.getKafkaProperties(context);
-
-		kafkaProps.put(KafkaSourceConstants.AUTO_COMMIT_ENABLED, "true");
-		kafkaProps.put(KafkaSourceConstants.CONSUMER_TIMEOUT, "-1");
 	}
 
 	private class KafkaConsumer implements Runnable {
 
 		private KafkaStream<byte[], byte[]> stream;
 
-		private ChannelProcessor channelProcessor;
-
-		public KafkaConsumer(KafkaStream<byte[], byte[]> stream, ChannelProcessor channelProcessor) {
+		public KafkaConsumer(KafkaStream<byte[], byte[]> stream) {
 			this.stream = stream;
-
-			this.channelProcessor = channelProcessor;
 		}
 
 		private void flush(List<Event> events) {
 			if (CollectionUtils.isNotEmpty(events)) {
 				try {
-					channelProcessor.processEventBatch(events);
-
-					if (LOGGER.isDebugEnabled()) {
-						LOGGER.debug("KafkaConsumer " + Thread.currentThread().getName() + " flush " + events.size()
-								+ " events to channel");
-					}
+					getChannelProcessor().processEventBatch(events);
 
 					events.clear();
 				} catch (Exception e) {
@@ -110,7 +103,9 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		@Override
 		public void run() {
-			LOGGER.info("KafkaConsumer " + Thread.currentThread().getName() + " starting...");
+			String consumerName = Thread.currentThread().getName();
+
+			LOGGER.info(consumerName + " starting...");
 
 			try {
 				ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
@@ -133,10 +128,6 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 					headers.put(KafkaSourceConstants.TOPIC, messageAndMetadata.topic());
 					headers.put(KafkaSourceConstants.TIMESTAMP, String.valueOf(System.currentTimeMillis()));
 
-					if (LOGGER.isDebugEnabled()) {
-						LOGGER.debug("Message: " + new String(kafkaMessage) + ", Headers: " + headers);
-					}
-
 					events.add(EventBuilder.withBody(kafkaMessage, headers));
 
 					if (events.size() >= batchUpperLimit || System.currentTimeMillis() > batchEndTime) {
@@ -148,48 +139,50 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 				flush(events);
 			} catch (Throwable e) {
-				LOGGER.error("KafkaConsumer error: " + ExceptionUtils.getFullStackTrace(e));
+				LOGGER.error(consumerName + " consume error: " + ExceptionUtils.getFullStackTrace(e));
 			}
 
-			LOGGER.info("KafkaConsumer " + Thread.currentThread().getName() + " stoped");
+			LOGGER.info(consumerName + " stoped");
 		}
 
 	}
 
 	@Override
 	public synchronized void start() {
-		LOGGER.info("Starting {}...", this);
+		LOGGER.info(getName() + " starting...");
 
 		try {
-			consumer = KafkaSourceUtil.getConsumer(kafkaProps);
+			consumerConnector = KafkaSourceUtil.getConsumer(kafkaProps);
 
 			TopicFilter topicFilter = new Whitelist(topics);
 
-			List<KafkaStream<byte[], byte[]>> streams = consumer.createMessageStreamsByFilter(topicFilter, threads);
+			List<KafkaStream<byte[], byte[]>> streams = consumerConnector.createMessageStreamsByFilter(topicFilter,
+					threads);
+
+			consumers = Executors.newFixedThreadPool(threads,
+					new ThreadFactoryBuilder().setNameFormat("kafka-" + getName() + "-consume-consumer-%d").build());
 
 			for (KafkaStream<byte[], byte[]> stream : streams) {
-				executor.submit(new KafkaConsumer(stream, getChannelProcessor()));
+				consumers.submit(new KafkaConsumer(stream));
 			}
 
 			super.start();
 
-			LOGGER.info("Kafka source {} started.", getName());
+			LOGGER.info(getName() + "started");
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			LOGGER.error(getName() + " start error: " + ExceptionUtils.getFullStackTrace(e));
 		}
 	}
 
 	@Override
 	public synchronized void stop() {
-		if (getLifecycleState() == LifecycleState.STOP) {
-			return;
-		}
+		LOGGER.info(getName() + " stoping...");
 
-		consumer.shutdown();
+		consumerConnector.shutdown();
 
-		executor.shutdown();
+		consumers.shutdown();
 
-		while (!executor.isTerminated()) {
+		while (!consumers.isTerminated()) {
 			try {
 				this.wait(1000);
 			} catch (InterruptedException e) {
@@ -198,7 +191,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		super.stop();
 
-		LOGGER.info("Kafka Source {} stopped.", getName());
+		LOGGER.info(getName() + " stoped");
 	}
 
 }
