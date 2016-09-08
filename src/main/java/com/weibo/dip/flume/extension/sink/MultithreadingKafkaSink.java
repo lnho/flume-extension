@@ -7,12 +7,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Channel;
@@ -21,8 +19,6 @@ import org.apache.flume.Event;
 import org.apache.flume.EventDeliveryException;
 import org.apache.flume.Transaction;
 import org.apache.flume.conf.Configurable;
-import org.apache.flume.instrumentation.kafka.KafkaSinkCounter;
-import org.apache.flume.lifecycle.LifecycleState;
 import org.apache.flume.sink.AbstractSink;
 import org.apache.flume.sink.kafka.KafkaSink;
 import org.apache.flume.sink.kafka.KafkaSinkConstants;
@@ -31,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
@@ -46,38 +43,54 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 	private Properties kafkaProps;
 
-	private long processSleep;
-
 	private String topicHeaderName;
 
 	private int consumers;
 
-	private long batchSleep;
+	private long sinkSleep;
 
-	private ThreadPoolExecutor executor;
+	private ExecutorService sinkers;
 
-	private boolean consumerStoped = false;
+	private boolean sinkStoped = false;
 
 	private int batchSize;
 
-	private KafkaSinkCounter counter;
-
 	@Override
-	public Status process() throws EventDeliveryException {
-		try {
-			Thread.sleep(processSleep);
-		} catch (InterruptedException e) {
-		}
+	public void configure(Context context) {
+		topicHeaderName = context.getString("topicHeaderName");
+		LOGGER.info("topicHeaderName: {}", topicHeaderName);
 
-		return Status.READY;
+		Preconditions.checkState(StringUtils.isNotEmpty(topicHeaderName), "topicHeaderName's value must not be empty");
+
+		consumers = context.getInteger("consumers");
+		LOGGER.info("consumers: {}", consumers);
+
+		Preconditions.checkState(consumers > 0, "consumers's value must be greater than zero");
+
+		batchSize = context.getInteger(KafkaSinkConstants.BATCH_SIZE, KafkaSinkConstants.DEFAULT_BATCH_SIZE);
+		LOGGER.info("batchSize: {}" + batchSize);
+
+		Preconditions.checkState(batchSize > 0, "batchSize's value must be greater than zero");
+
+		sinkSleep = context.getLong("sinkSleep", 1000L);
+		LOGGER.info("sinkSleep: {}", sinkSleep);
+
+		Preconditions.checkState(sinkSleep > 0, "batchSleep's value must be greater than zero");
+
+		kafkaProps = KafkaSinkUtil.getKafkaProperties(context);
+		LOGGER.info("Kafka producer properties: {}", kafkaProps);
 	}
 
-	public class ChannelConsumer implements Runnable {
+	public class Sinker implements Runnable {
 
 		private List<KeyedMessage<String, byte[]>> messageList = new ArrayList<>();
 
 		@Override
 		public void run() {
+			String sinkName = Thread.currentThread().getName();
+
+			LOGGER.info(sinkName + " started");
+
 			Producer<String, byte[]> producer = null;
 
 			try {
@@ -95,9 +108,7 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 				String eventTopic = null;
 
-				String eventKey = null;
-
-				while (!consumerStoped) {
+				while (!sinkStoped) {
 					try {
 						transaction = channel.getTransaction();
 
@@ -107,166 +118,99 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 						for (int processedEvents = 0; processedEvents < batchSize; processedEvents++) {
 							event = channel.take();
-
 							if (event == null) {
 								break;
 							}
 
 							headers = event.getHeaders();
 
-							if (MapUtils.isNotEmpty(headers) && headers.containsKey(topicHeaderName)) {
-								eventTopic = headers.get(topicHeaderName);
-							} else {
-								LOGGER.warn("Event header names do not contain {}", topicHeaderName);
+							eventTopic = headers.get(topicHeaderName);
 
-								continue;
-							}
-
-							eventKey = String.valueOf(System.currentTimeMillis());
+							Preconditions.checkState(StringUtils.isNotEmpty(eventTopic),
+									"eventTopic is emtpy, topicHeaderName(" + topicHeaderName
+											+ ") may be wrong, check");
 
 							byte[] eventBody = event.getBody();
 
 							// create a message and add to buffer
-							KeyedMessage<String, byte[]> data = new KeyedMessage<String, byte[]>(eventTopic, eventKey,
-									eventBody);
+							KeyedMessage<String, byte[]> data = new KeyedMessage<String, byte[]>(eventTopic, eventBody);
 
 							messageList.add(data);
 						}
 
 						// send batch
 						if (CollectionUtils.isNotEmpty(messageList)) {
-							long startTime = System.nanoTime();
-
 							producer.send(messageList);
-
-							long endTime = System.nanoTime();
-
-							counter.addToKafkaEventSendTimer((endTime - startTime) / (1000 * 1000));
-							counter.addToEventDrainSuccessCount(Long.valueOf(messageList.size()));
 						}
 
 						transaction.commit();
 
 						if (CollectionUtils.isNotEmpty(messageList)) {
 							try {
-								Thread.sleep(batchSleep);
+								Thread.sleep(sinkSleep);
 							} catch (InterruptedException e) {
 							}
 						}
 					} catch (Exception e) {
-						LOGGER.error("Failed to send events: {}", ExceptionUtils.getFullStackTrace(e));
+						LOGGER.error(sinkName + " failed to send events: {}", ExceptionUtils.getFullStackTrace(e));
 
-						if (transaction != null) {
-							try {
-								transaction.rollback();
-
-								counter.incrementRollbackCount();
-							} catch (Exception ex) {
-								LOGGER.error("Transaction rollback failed: {}", ExceptionUtils.getFullStackTrace(ex));
-							}
-						}
+						transaction.rollback();
 					} finally {
-						if (transaction != null) {
-							transaction.close();
-						}
+						transaction.close();
 					}
 				}
 			} catch (Exception e) {
-				LOGGER.error("Channel consumer error: " + ExceptionUtils.getFullStackTrace(e));
+				LOGGER.error(sinkName + " sink error: " + ExceptionUtils.getFullStackTrace(e));
 			} finally {
 				if (producer != null) {
 					producer.close();
 				}
 			}
+
+			LOGGER.info(sinkName + " stoped");
 		}
 
 	}
 
 	@Override
 	public synchronized void start() {
-		counter.start();
+		LOGGER.info(getName() + " starting...");
 
-		executor = new ThreadPoolExecutor(consumers, consumers, 0L, TimeUnit.MILLISECONDS,
-				new LinkedBlockingQueue<Runnable>());
+		sinkers = Executors.newFixedThreadPool(consumers,
+				new ThreadFactoryBuilder().setNameFormat("kafka-" + getName() + "-sink-sinker-%d").build());
 
 		for (int index = 0; index < consumers; index++) {
-			executor.submit(new ChannelConsumer());
+			sinkers.submit(new Sinker());
 		}
 
 		super.start();
+
+		LOGGER.info(getName() + " started");
+	}
+
+	@Override
+	public Status process() throws EventDeliveryException {
+		return Status.BACKOFF;
 	}
 
 	@Override
 	public synchronized void stop() {
-		if (getLifecycleState() == LifecycleState.STOP) {
-			return;
-		}
+		LOGGER.info(getName() + " starting...");
 
-		consumerStoped = true;
+		sinkStoped = true;
 
-		executor.shutdown();
+		sinkers.shutdown();
 
-		while (!executor.isTerminated()) {
+		while (!sinkers.isTerminated()) {
 			try {
 				this.wait(1000);
 			} catch (InterruptedException e) {
 			}
 		}
 
-		counter.stop();
-
-		LOGGER.info("Kafka Sink {} stopped. Metrics: {}", getName(), counter);
-
 		super.stop();
-	}
 
-	/**
-	 * We configure the sink and generate properties for the Kafka Producer
-	 *
-	 * Kafka producer properties is generated as follows: 1. We generate a
-	 * properties object with some static defaults that can be overridden by
-	 * Sink configuration 2. We add the configuration users added for Kafka
-	 * (parameters starting with .kafka. and must be valid Kafka Producer
-	 * properties 3. We add the sink's documented parameters which can override
-	 * other properties
-	 *
-	 * @param context
-	 */
-	@Override
-	public void configure(Context context) {
-		processSleep = context.getLong("processSleep", 3000L);
-		LOGGER.info("processSleep: {}", processSleep);
-
-		Preconditions.checkState(processSleep > 0, "processSleep's value must be greater than zero");
-
-		topicHeaderName = context.getString("topicHeaderName");
-		LOGGER.info("topicHeaderName: {}", topicHeaderName);
-
-		Preconditions.checkState(StringUtils.isNotEmpty(topicHeaderName), "topicHeaderName's value must not be empty");
-
-		consumers = context.getInteger("consumers");
-		LOGGER.info("consumers: {}", consumers);
-
-		Preconditions.checkState(consumers > 0, "consumers's value must be greater than zero");
-
-		batchSize = context.getInteger(KafkaSinkConstants.BATCH_SIZE, KafkaSinkConstants.DEFAULT_BATCH_SIZE);
-		LOGGER.info("batchSize: {}" + batchSize);
-
-		Preconditions.checkState(batchSize > 0, "batchSize's value must be greater than zero");
-
-		batchSleep = context.getLong("batchSleep", 100L);
-		LOGGER.info("batchSleep: {}", batchSleep);
-
-		Preconditions.checkState(batchSleep > 0, "batchSleep's value must be greater than zero");
-
-		kafkaProps = KafkaSinkUtil.getKafkaProperties(context);
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("Kafka producer properties: " + kafkaProps);
-		}
-
-		if (counter == null) {
-			counter = new KafkaSinkCounter(getName());
-		}
+		LOGGER.info(getName() + " stoped");
 	}
 
 }

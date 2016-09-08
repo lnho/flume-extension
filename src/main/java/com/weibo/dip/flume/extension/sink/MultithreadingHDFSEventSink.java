@@ -72,6 +72,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	private int batchSize;
 
+	private long sinkSleep;
+
 	private String categoryHeaderName;
 
 	private boolean useLocaltime;
@@ -110,7 +112,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 			String category = headers.get(categoryHeaderName);
 
 			Preconditions.checkState(StringUtils.isNotEmpty(category),
-					"category is empty, categoryHeaderName may be wrong, check");
+					"category is empty, categoryHeaderName(" + categoryHeaderName + ") may be wrong, check");
 
 			String timestamp = null;
 
@@ -120,7 +122,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 				timestamp = headers.get(timestampHeaderName);
 
 				Preconditions.checkState(StringUtils.isNotEmpty(category),
-						"timestamp is empty, timestampHeaderName may be wrong, check");
+						"timestamp is empty, timestampHeaderName(" + timestampHeaderName + ") may be wrong, check");
 			}
 
 			return rootDirectory + category + DIRECTORY_SEPARATOR + getDirectory(timestamp) + DIRECTORY_SEPARATOR
@@ -134,15 +136,19 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 			LOGGER.info(sinkName + " started");
 
-			while (!sinkStoped) {
-				Channel channel = getChannel();
+			Channel channel = getChannel();
 
-				Transaction transaction = channel.getTransaction();
+			Transaction transaction = null;
+
+			Map<String, List<Event>> lookupPathEvents = new HashMap<>();
+
+			while (!sinkStoped) {
+				transaction = channel.getTransaction();
 
 				transaction.begin();
 
 				try {
-					Map<String, List<Event>> lookupPathEvents = new HashMap<>();
+					lookupPathEvents.clear();
 
 					int txnEventCount = 0;
 
@@ -173,6 +179,13 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 					}
 
 					transaction.commit();
+
+					if (MapUtils.isEmpty(lookupPathEvents)) {
+						try {
+							Thread.sleep(sinkSleep);
+						} catch (InterruptedException e) {
+						}
+					}
 				} catch (Exception e) {
 					LOGGER.error(sinkName + " write error: " + ExceptionUtils.getFullStackTrace(e));
 
@@ -396,31 +409,56 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 		} catch (UnknownHostException e) {
 			LOGGER.error("get hostname error: " + ExceptionUtils.getFullStackTrace(e));
 		}
+		LOGGER.info("hostname: {}", hostname);
 
 		Preconditions.checkState(StringUtils.isNotEmpty(hostname), "hostname may get error, check");
 
 		rootDirectory = context.getString("rootDirectory", "/tmp/");
+		LOGGER.info("rootDirectory: {}", rootDirectory);
+
+		Preconditions.checkState(StringUtils.isNotEmpty(rootDirectory), "rootDirectory's value must not be empty");
 
 		timePartition = context.getString("timePartition", "yyyy_MM_dd/HH");
+		LOGGER.info("timePartition: {}", timePartition);
+
+		Preconditions.checkState(StringUtils.isNotEmpty(timePartition), "timePartition's value must not be empty");
 
 		threads = context.getInteger("threads", 1);
+		LOGGER.info("threads: {}", threads);
+
+		Preconditions.checkState(threads > 0, "threads's value must be greater than zero");
 
 		batchSize = context.getInteger("batchSize", 1000);
+		LOGGER.info("batchSize: {}", batchSize);
+
+		Preconditions.checkState(batchSize > 0, "batchSize's value must be greater than zero");
+
+		sinkSleep = context.getLong("sinkSleep", 1000L);
+		LOGGER.info("sinkSleep: {}", sinkSleep);
+
+		Preconditions.checkState(sinkSleep > 0, "sinkSleep's value must be greater than zero");
 
 		categoryHeaderName = context.getString("categoryHeaderName");
+		LOGGER.info("categoryHeaderName: {}", categoryHeaderName);
 
-		Preconditions.checkState(StringUtils.isNotEmpty(categoryHeaderName), "categoryHeaderName must be specified");
+		Preconditions.checkState(StringUtils.isNotEmpty(categoryHeaderName),
+				"categoryHeaderName's value must not be empty");
 
 		useLocaltime = context.getBoolean("useLocaltime", false);
+		LOGGER.info("useLocaltime: {}", useLocaltime);
 
 		if (!useLocaltime) {
 			timestampHeaderName = context.getString("timestampHeaderName");
+			LOGGER.info("timestampHeaderName: {}", timestampHeaderName);
 
 			Preconditions.checkState(StringUtils.isNotEmpty(timestampHeaderName),
-					"timestampHeaderName must be specified, because of useLocaltime is false");
+					"timestampHeaderName value must not be empty, because of useLocaltime is false");
 		}
 
 		rollTime = context.getLong("rollTime", 300000L);
+		LOGGER.info("rollTime: {}", rollTime);
+
+		Preconditions.checkState(rollTime > 0, "rollTime's value must be greater than zero");
 	}
 
 	@Override

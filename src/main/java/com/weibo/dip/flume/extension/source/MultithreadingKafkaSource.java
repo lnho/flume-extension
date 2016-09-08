@@ -66,19 +66,24 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		}
 
 		topics = StringUtils.join(topicNames, "|");
+		LOGGER.info("topics: {}", topics);
 
 		Preconditions.checkState(StringUtils.isNotEmpty(topics), "topics's value must not be empty");
 
 		threads = context.getInteger("threads", 1);
+		LOGGER.info("threads: {}", threads);
 
 		Preconditions.checkState(threads > 0, "threads's value must be greater than zero");
 
 		batchUpperLimit = context.getInteger(KafkaSourceConstants.BATCH_SIZE, KafkaSourceConstants.DEFAULT_BATCH_SIZE);
+		LOGGER.info("batchUpperLimit: {}", batchUpperLimit);
 
 		timeUpperLimit = context.getInteger(KafkaSourceConstants.BATCH_DURATION_MS,
 				KafkaSourceConstants.DEFAULT_BATCH_DURATION);
+		LOGGER.info("timeUpperLimit: {}", timeUpperLimit);
 
 		kafkaProps = KafkaSourceUtil.getKafkaProperties(context);
+		LOGGER.info("kafkaProps: " + kafkaProps);
 	}
 
 	private class KafkaConsumer implements Runnable {
