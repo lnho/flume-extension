@@ -76,12 +76,12 @@ public class WriteHDFSMain {
 			public void run() {
 				LOGGER.info("shutdown starting...");
 
+				writer.setStop(true);
+
 				try {
-					Thread.sleep(30 * 1000);
+					Thread.sleep(10 * 1000);
 				} catch (InterruptedException e) {
 				}
-
-				writer.setStop(true);
 
 				LOGGER.info("shutdown stoped");
 			}
