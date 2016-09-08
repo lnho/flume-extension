@@ -88,13 +88,17 @@ public class WriteHDFSMain {
 	public static void main(String[] args) throws IOException {
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 
-		executor.submit(new Writer());
+		Writer writer = new Writer();
+
+		executor.submit(writer);
 
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 
 			@Override
 			public void run() {
 				LOGGER.info("shutdown starting...");
+
+				writer.setStop(true);
 
 				executor.shutdown();
 
