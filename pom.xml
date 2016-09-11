@@ -19,6 +19,12 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.apache.flume</groupId>
+			<artifactId>flume-ng-node</artifactId>
+			<version>${flume.version}</version>
+		</dependency>
+
+		<dependency>
 			<groupId>org.apache.flume.flume-ng-sources</groupId>
 			<artifactId>flume-scribe-source</artifactId>
 			<version>${flume.version}</version>
