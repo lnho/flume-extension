@@ -6,6 +6,7 @@ package com.weibo.dip.flume.extension.channel;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.flume.Context;
@@ -97,14 +98,12 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	@Override
 	protected BasicTransactionSemantics createTransaction() {
-		// try {
-		// return fileChannels.get((int) (System.currentTimeMillis() %
-		// channels)).createTransaction();
-		// } catch (IndexOutOfBoundsException e) {
-		// return null;
-		// }
-
-		return fileChannels.get((int) (System.currentTimeMillis() % channels)).createTransaction();
+		try {
+			return fileChannels.get((int) (ThreadLocalRandom.current().nextInt(channels) % channels))
+					.createTransaction();
+		} catch (IndexOutOfBoundsException e) {
+			return null;
+		}
 	}
 
 	@Override
