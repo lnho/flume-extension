@@ -5,9 +5,10 @@ package com.weibo.dip.flume.extension.test;
 
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -22,11 +23,13 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.CharEncoding;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Context;
 import org.apache.flume.event.EventBuilder;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -36,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import com.weibo.dip.flume.extension.sink.scribe.EventToLogEntrySerializer;
 import com.weibo.dip.flume.extension.sink.scribe.FlumeEventSerializer;
+import com.weibo.dip.flume.extension.sink.scribe.LogEntry;
 import com.weibo.dip.flume.extension.sink.scribe.Scribe;
 import com.weibo.dip.flume.extension.sink.scribe.ScribeSinkConfigurationConstants;
 
@@ -59,7 +63,13 @@ public class MultithreadingScribeClientMain {
 
 		private long lines;
 
-		public ScribeLogger(String host, int port, String category, long lines) {
+		private int batch;
+
+		private TTransport transport = null;
+
+		private Scribe.Client client = null;
+
+		public ScribeLogger(String host, int port, String category, long lines, int batch) {
 			this.host = host;
 
 			this.port = port;
@@ -67,14 +77,22 @@ public class MultithreadingScribeClientMain {
 			this.category = category;
 
 			this.lines = lines;
+
+			this.batch = batch;
+		}
+
+		private void flush(List<LogEntry> buffer) throws TException {
+			if (CollectionUtils.isNotEmpty(buffer)) {
+				client.Log(buffer);
+
+				COUNTING.addAndGet(buffer.size());
+
+				buffer.clear();
+			}
 		}
 
 		@Override
 		public void run() {
-			TTransport transport = null;
-
-			Scribe.Client client = null;
-
 			try {
 				transport = new TFramedTransport(new TSocket(new Socket(host, port)));
 
@@ -90,6 +108,8 @@ public class MultithreadingScribeClientMain {
 
 				serializer.configure(new Context(parameters));
 
+				List<LogEntry> buffer = new ArrayList<>();
+
 				long count = 0;
 
 				while (count <= lines) {
@@ -100,13 +120,16 @@ public class MultithreadingScribeClientMain {
 
 					headers.put("category", category);
 
-					client.Log(Arrays.asList(
-							serializer.serialize(EventBuilder.withBody(line.getBytes(CharEncoding.UTF_8), headers))));
+					buffer.add(serializer.serialize(EventBuilder.withBody(line.getBytes(CharEncoding.UTF_8), headers)));
 
 					count++;
 
-					COUNTING.incrementAndGet();
+					if (buffer.size() >= batch) {
+						flush(buffer);
+					}
 				}
+
+				flush(buffer);
 			} catch (Exception e) {
 				LOGGER.error("ScribeLogger" + Thread.currentThread().getName() + " log error: "
 						+ ExceptionUtils.getFullStackTrace(e));
@@ -159,6 +182,8 @@ public class MultithreadingScribeClientMain {
 				.addOption(Option.builder("threads").hasArg().argName("thread number").required(false).build());
 		scribeClientOptions.addOption(
 				Option.builder("lines").hasArg().argName("every thread will log lines").required(false).build());
+		scribeClientOptions.addOption(
+				Option.builder("batch").hasArg().argName("every thread log batch size").required(false).build());
 		scribeClientOptions.addOption(Option.builder("help").hasArg(false).required(false).build());
 
 		HelpFormatter formatter = new HelpFormatter();
@@ -199,6 +224,11 @@ public class MultithreadingScribeClientMain {
 			lines = Long.valueOf(commandLine.getOptionValue("lines"));
 		}
 
+		int batch = 1000;
+		if (commandLine.hasOption("batch")) {
+			batch = Integer.valueOf(commandLine.getOptionValue("batch"));
+		}
+
 		Monitor monitor = new Monitor();
 
 		monitor.setDaemon(true);
@@ -208,7 +238,7 @@ public class MultithreadingScribeClientMain {
 		ExecutorService loggers = Executors.newFixedThreadPool(threads);
 
 		for (int index = 0; index < threads; index++) {
-			loggers.submit(new ScribeLogger(host, port, category, lines));
+			loggers.submit(new ScribeLogger(host, port, category, lines, batch));
 		}
 
 		loggers.shutdown();
