@@ -145,7 +145,7 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 						transaction.commit();
 
-						if (CollectionUtils.isNotEmpty(messageList)) {
+						if (CollectionUtils.isEmpty(messageList)) {
 							try {
 								Thread.sleep(sinkSleep);
 							} catch (InterruptedException e) {
