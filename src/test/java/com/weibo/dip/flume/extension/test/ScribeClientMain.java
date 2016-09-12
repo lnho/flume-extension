@@ -21,6 +21,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.CharEncoding;
 import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.flume.Context;
 import org.apache.flume.event.EventBuilder;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import com.weibo.dip.flume.extension.sink.scribe.EventToLogEntrySerializer;
 import com.weibo.dip.flume.extension.sink.scribe.FlumeEventSerializer;
 import com.weibo.dip.flume.extension.sink.scribe.Scribe;
+import com.weibo.dip.flume.extension.sink.scribe.ScribeSinkConfigurationConstants;
 
 /**
  * @author yurun
@@ -97,6 +99,12 @@ public class ScribeClientMain {
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss");
 
 			FlumeEventSerializer serializer = new EventToLogEntrySerializer();
+
+			Map<String, String> parameters = new HashMap<>();
+
+			parameters.put(ScribeSinkConfigurationConstants.CONFIG_SCRIBE_CATEGORY_HEADER, "category");
+
+			serializer.configure(new Context(parameters));
 
 			long count = 0;
 
