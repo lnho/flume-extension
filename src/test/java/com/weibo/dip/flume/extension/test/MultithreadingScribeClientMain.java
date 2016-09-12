@@ -123,15 +123,25 @@ public class MultithreadingScribeClientMain {
 
 	private static class Monitor extends Thread {
 
+		private int interval = 5;
+
+		private long lastCount = 0;
+
 		@Override
 		public void run() {
 			while (true) {
 				try {
-					Thread.sleep(5 * 1000);
+					Thread.sleep(interval * 1000);
 				} catch (InterruptedException e) {
 				}
 
-				LOGGER.info("ScribeClient log " + COUNTING.get() + " lines");
+				long count = COUNTING.get();
+
+				double speed = (count - lastCount) / 1.0 / interval;
+
+				lastCount = count;
+
+				LOGGER.info("ScribeClient log " + count + " lines, speed: " + speed + " lines/s");
 			}
 		}
 
