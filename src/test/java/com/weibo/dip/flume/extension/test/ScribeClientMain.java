@@ -124,6 +124,8 @@ public class ScribeClientMain {
 					LOGGER.info("scribe client log " + count + " lines");
 				}
 			}
+
+			LOGGER.info("scribe client total log " + count + " lines");
 		} catch (Exception e) {
 			LOGGER.error("ScribeClient log error: " + ExceptionUtils.getFullStackTrace(e));
 		} finally {
