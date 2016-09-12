@@ -126,10 +126,9 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 							eventTopic = headers.get(topicHeaderName);
 
-							// Preconditions.checkState(StringUtils.isNotEmpty(eventTopic),
-							// "eventTopic is emtpy, topicHeaderName(" +
-							// topicHeaderName
-							// + ") may be wrong, check");
+							Preconditions.checkState(StringUtils.isNotEmpty(eventTopic),
+									"eventTopic is emtpy, topicHeaderName(" + topicHeaderName
+											+ ") may be wrong, check");
 
 							byte[] eventBody = event.getBody();
 
@@ -146,12 +145,12 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 						transaction.commit();
 
-						// if (CollectionUtils.isEmpty(messageList)) {
-						// try {
-						// Thread.sleep(sinkSleep);
-						// } catch (InterruptedException e) {
-						// }
-						// }
+						if (CollectionUtils.isEmpty(messageList)) {
+							try {
+								Thread.sleep(sinkSleep);
+							} catch (InterruptedException e) {
+							}
+						}
 					} catch (Exception e) {
 						LOGGER.error(sinkerName + " failed to send events: {}", ExceptionUtils.getFullStackTrace(e));
 
