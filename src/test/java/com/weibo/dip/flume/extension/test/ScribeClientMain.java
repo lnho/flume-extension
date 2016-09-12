@@ -119,6 +119,10 @@ public class ScribeClientMain {
 						serializer.serialize(EventBuilder.withBody(line.getBytes(CharEncoding.UTF_8), headers))));
 
 				count++;
+
+				if (count % 10000 == 0) {
+					LOGGER.info("scribe client log " + count + " lines");
+				}
 			}
 		} catch (Exception e) {
 			LOGGER.error("ScribeClient log error: " + ExceptionUtils.getFullStackTrace(e));
