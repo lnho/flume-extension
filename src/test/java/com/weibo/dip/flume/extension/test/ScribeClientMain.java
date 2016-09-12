@@ -111,8 +111,6 @@ public class ScribeClientMain {
 			while (count <= lines) {
 				String line = sdf.format(new Date(System.currentTimeMillis())) + "_" + UUID.randomUUID().toString();
 
-				line = "2016_09_12_15_18_15_pool-1-thread-16_560f9126-a07d-4777-add5-49dedb161243";
-
 				Map<String, String> headers = new HashMap<>();
 
 				headers.put("category", category);

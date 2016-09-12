@@ -10,7 +10,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -114,7 +113,7 @@ public class MultithreadingScribeClientMain {
 
 				while (count <= lines) {
 					String line = sdf.format(new Date(System.currentTimeMillis())) + "_"
-							+ Thread.currentThread().getName() + "_" + UUID.randomUUID().toString();
+							+ Thread.currentThread().getName() + "_" + this.getClass().getCanonicalName();
 
 					Map<String, String> headers = new HashMap<>();
 
