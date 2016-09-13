@@ -128,7 +128,7 @@ public class ScribeClientMain {
 
 				long count = 0;
 
-				while (count <= lines) {
+				while (count < lines) {
 					StringBuffer line = new StringBuffer(sdf.format(new Date(System.currentTimeMillis())) + "_"
 							+ Thread.currentThread().getName() + "_" + this.getClass().getCanonicalName() + "_");
 
