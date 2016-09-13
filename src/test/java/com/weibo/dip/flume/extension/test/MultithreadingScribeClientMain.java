@@ -115,6 +115,10 @@ public class MultithreadingScribeClientMain {
 					String line = sdf.format(new Date(System.currentTimeMillis())) + "_"
 							+ Thread.currentThread().getName() + "_" + this.getClass().getCanonicalName();
 
+					for (int index = 0; index < 3; index++) {
+						line = line + line;
+					}
+
 					Map<String, String> headers = new HashMap<>();
 
 					headers.put("category", category);
