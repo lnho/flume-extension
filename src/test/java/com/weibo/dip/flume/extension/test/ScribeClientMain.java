@@ -45,6 +45,13 @@ import com.weibo.dip.flume.extension.sink.scribe.ScribeSinkConfigurationConstant
 
 /**
  * @author yurun
+ * 
+ *         java -Xmx2048m -cp
+ *         target/test-classes/:target/flume-extension-0.0.3.jar:target/flume-
+ *         extension-0.0.3-lib/*
+ *         com.weibo.dip.flume.extension.test.ScribeClientMn -host 10.13.4.44
+ *         -port 1467 -category app_dipsinacomkafka12345_hadooplog -threads 15
+ *         -lines 100000000
  *
  */
 public class ScribeClientMain {
@@ -123,7 +130,7 @@ public class ScribeClientMain {
 
 				while (count <= lines) {
 					StringBuffer line = new StringBuffer(sdf.format(new Date(System.currentTimeMillis())) + "_"
-							+ Thread.currentThread().getName() + "_" + this.getClass().getCanonicalName());
+							+ Thread.currentThread().getName() + "_" + this.getClass().getCanonicalName() + "_");
 
 					while (line.length() < bytes) {
 						line.append(seeds[random.nextInt(seeds.length)]);
