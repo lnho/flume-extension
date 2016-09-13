@@ -5,11 +5,16 @@ package com.weibo.dip.flume.extension.test;
 
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -18,11 +23,13 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.CharEncoding;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Context;
 import org.apache.flume.event.EventBuilder;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -32,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import com.weibo.dip.flume.extension.sink.scribe.EventToLogEntrySerializer;
 import com.weibo.dip.flume.extension.sink.scribe.FlumeEventSerializer;
+import com.weibo.dip.flume.extension.sink.scribe.LogEntry;
 import com.weibo.dip.flume.extension.sink.scribe.Scribe;
 import com.weibo.dip.flume.extension.sink.scribe.ScribeSinkConfigurationConstants;
 
@@ -43,6 +51,139 @@ public class ScribeClientMain {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ScribeClientMain.class);
 
+	private static final AtomicLong COUNTING = new AtomicLong(0);
+
+	private static class ScribeLogger implements Runnable {
+
+		private String host;
+
+		private int port;
+
+		private String category;
+
+		private int bytes;
+
+		private long lines;
+
+		private int batch;
+
+		private TTransport transport = null;
+
+		private Scribe.Client client = null;
+
+		private String[] seeds = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "g",
+				"h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z" };
+
+		private Random random = new Random();
+
+		public ScribeLogger(String host, int port, String category, int bytes, long lines, int batch) {
+			this.host = host;
+
+			this.port = port;
+
+			this.category = category;
+
+			this.bytes = bytes;
+
+			this.lines = lines;
+
+			this.batch = batch;
+		}
+
+		private void flush(List<LogEntry> buffer) throws TException {
+			if (CollectionUtils.isNotEmpty(buffer)) {
+				client.Log(buffer);
+
+				COUNTING.addAndGet(buffer.size());
+
+				buffer.clear();
+			}
+		}
+
+		@Override
+		public void run() {
+			try {
+				transport = new TFramedTransport(new TSocket(new Socket(host, port)));
+
+				client = new Scribe.Client(new TBinaryProtocol(transport, false, false));
+
+				SimpleDateFormat sdf = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss");
+
+				FlumeEventSerializer serializer = new EventToLogEntrySerializer();
+
+				Map<String, String> parameters = new HashMap<>();
+
+				parameters.put(ScribeSinkConfigurationConstants.CONFIG_SCRIBE_CATEGORY_HEADER, "category");
+
+				serializer.configure(new Context(parameters));
+
+				List<LogEntry> buffer = new ArrayList<>();
+
+				long count = 0;
+
+				while (count <= lines) {
+					StringBuffer line = new StringBuffer(sdf.format(new Date(System.currentTimeMillis())) + "_"
+							+ Thread.currentThread().getName() + "_" + this.getClass().getCanonicalName());
+
+					while (line.length() < bytes) {
+						line.append(seeds[random.nextInt(seeds.length)]);
+					}
+
+					Map<String, String> headers = new HashMap<>();
+
+					headers.put("category", category);
+
+					buffer.add(serializer
+							.serialize(EventBuilder.withBody(line.toString().getBytes(CharEncoding.UTF_8), headers)));
+
+					count++;
+
+					if (buffer.size() >= batch) {
+						flush(buffer);
+					}
+				}
+
+				flush(buffer);
+			} catch (Exception e) {
+				LOGGER.error("ScribeLogger" + Thread.currentThread().getName() + " log error: "
+						+ ExceptionUtils.getFullStackTrace(e));
+			} finally {
+				client = null;
+
+				if (transport != null) {
+					transport.close();
+				}
+			}
+		}
+
+	}
+
+	private static class Monitor extends Thread {
+
+		private int interval = 5;
+
+		private long lastCount = 0;
+
+		@Override
+		public void run() {
+			while (true) {
+				try {
+					Thread.sleep(interval * 1000);
+				} catch (InterruptedException e) {
+				}
+
+				long count = COUNTING.get();
+
+				double speed = (count - lastCount) / 1.0 / interval;
+
+				lastCount = count;
+
+				LOGGER.info("ScribeClient log " + count + " lines, speed: " + speed + " lines/s");
+			}
+		}
+
+	}
+
 	public static void main(String[] args) {
 		Options scribeClientOptions = new Options();
 
@@ -51,7 +192,14 @@ public class ScribeClientMain {
 		scribeClientOptions
 				.addOption(Option.builder("port").hasArg().argName("scribe(flume) server port").required().build());
 		scribeClientOptions.addOption(Option.builder("category").hasArg().argName("category name").required().build());
-		scribeClientOptions.addOption(Option.builder("lines").hasArg().argName("line number").required(false).build());
+		scribeClientOptions
+				.addOption(Option.builder("threads").hasArg().argName("thread number").required(false).build());
+		scribeClientOptions
+				.addOption(Option.builder("bytes").hasArg().argName("every line bytes").required(false).build());
+		scribeClientOptions.addOption(
+				Option.builder("lines").hasArg().argName("every thread will log lines").required(false).build());
+		scribeClientOptions.addOption(
+				Option.builder("batch").hasArg().argName("every thread log batch size").required(false).build());
 		scribeClientOptions.addOption(Option.builder("help").hasArg(false).required(false).build());
 
 		HelpFormatter formatter = new HelpFormatter();
@@ -82,59 +230,48 @@ public class ScribeClientMain {
 
 		String category = commandLine.getOptionValue("category");
 
+		int threads = 1;
+		if (commandLine.hasOption("threads")) {
+			threads = Integer.valueOf(commandLine.getOptionValue("threads"));
+		}
+
+		int bytes = 512;
+		if (commandLine.hasOption("bytes")) {
+			bytes = Integer.valueOf(commandLine.getOptionValue("bytes"));
+		}
+
 		long lines = Long.MAX_VALUE;
 		if (commandLine.hasOption("lines")) {
 			lines = Long.valueOf(commandLine.getOptionValue("lines"));
 		}
 
-		TTransport transport = null;
+		int batch = 1000;
+		if (commandLine.hasOption("batch")) {
+			batch = Integer.valueOf(commandLine.getOptionValue("batch"));
+		}
 
-		Scribe.Client client = null;
+		Monitor monitor = new Monitor();
 
-		try {
-			transport = new TFramedTransport(new TSocket(new Socket(host, port)));
+		monitor.setDaemon(true);
 
-			client = new Scribe.Client(new TBinaryProtocol(transport, false, false));
+		monitor.start();
 
-			SimpleDateFormat sdf = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss");
+		ExecutorService loggers = Executors.newFixedThreadPool(threads);
 
-			FlumeEventSerializer serializer = new EventToLogEntrySerializer();
+		for (int index = 0; index < threads; index++) {
+			loggers.submit(new ScribeLogger(host, port, category, bytes, lines, batch));
+		}
 
-			Map<String, String> parameters = new HashMap<>();
+		loggers.shutdown();
 
-			parameters.put(ScribeSinkConfigurationConstants.CONFIG_SCRIBE_CATEGORY_HEADER, "category");
-
-			serializer.configure(new Context(parameters));
-
-			long count = 0;
-
-			while (count <= lines) {
-				String line = sdf.format(new Date(System.currentTimeMillis())) + "_" + UUID.randomUUID().toString();
-
-				Map<String, String> headers = new HashMap<>();
-
-				headers.put("category", category);
-
-				client.Log(Arrays.asList(
-						serializer.serialize(EventBuilder.withBody(line.getBytes(CharEncoding.UTF_8), headers))));
-
-				count++;
-
-				if (count % 10000 == 0) {
-					LOGGER.info("scribe client log " + count + " lines");
-				}
-			}
-
-			LOGGER.info("scribe client total log " + count + " lines");
-		} catch (Exception e) {
-			LOGGER.error("ScribeClient log error: " + ExceptionUtils.getFullStackTrace(e));
-		} finally {
-			client = null;
-
-			if (transport != null) {
-				transport.close();
+		while (!loggers.isTerminated()) {
+			try {
+				loggers.awaitTermination(1, TimeUnit.SECONDS);
+			} catch (InterruptedException e) {
 			}
 		}
+
+		LOGGER.info("ScribeClient total log " + COUNTING.get() + " lines");
 	}
 
 }
