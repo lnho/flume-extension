@@ -145,7 +145,7 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 	private class Sinker implements Runnable {
 
-		private String sinkerName = Thread.currentThread().getName();
+		private String sinkerName;
 
 		private SimpleDateFormat directoryDateFormat = new SimpleDateFormat(timePartition);
 
@@ -193,6 +193,8 @@ public class MultithreadingHDFSEventSink extends AbstractSink implements Configu
 
 		@Override
 		public void run() {
+			sinkerName = Thread.currentThread().getName();
+
 			LOGGER.info(sinkerName + " started");
 
 			Channel channel = getChannel();

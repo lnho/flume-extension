@@ -88,7 +88,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 	private class KafkaSourcer implements Runnable {
 
-		private String sourcerName = Thread.currentThread().getName();
+		private String sourcerName;
 
 		private KafkaStream<byte[], byte[]> stream;
 
@@ -110,6 +110,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		@Override
 		public void run() {
+			sourcerName = Thread.currentThread().getName();
+
 			LOGGER.info(sourcerName + " starting...");
 
 			try {

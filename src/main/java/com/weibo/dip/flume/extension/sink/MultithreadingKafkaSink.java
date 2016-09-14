@@ -83,12 +83,14 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 	public class Sinker implements Runnable {
 
-		private String sinkerName = Thread.currentThread().getName();
+		private String sinkerName;
 
 		private List<KeyedMessage<String, byte[]>> messageList = new ArrayList<>();
 
 		@Override
 		public void run() {
+			sinkerName = Thread.currentThread().getName();
+
 			LOGGER.info(sinkerName + " started");
 
 			Producer<String, byte[]> producer = null;
