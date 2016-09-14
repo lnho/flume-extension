@@ -68,8 +68,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		topics = StringUtils.join(topicNames, "|");
 		LOGGER.info("topics: {}", topics);
 
-		// Preconditions.checkState(StringUtils.isNotEmpty(topics), "topics's
-		// value must not be empty");
+		LOGGER.warn("topics's value is empty");
 
 		threads = context.getInteger("threads", 1);
 		LOGGER.info("threads: {}", threads);
@@ -145,7 +144,11 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 				flush(events);
 			} catch (Throwable e) {
-				LOGGER.error(sourcerName + " consume error: " + ExceptionUtils.getFullStackTrace(e));
+				if (e instanceof InterruptedException) {
+					LOGGER.warn(sourcerName + " has been interrupted");
+				} else {
+					LOGGER.error(sourcerName + " consume error: " + ExceptionUtils.getFullStackTrace(e));
+				}
 			}
 
 			LOGGER.info(sourcerName + " stoped");
@@ -173,7 +176,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		super.start();
 
-		LOGGER.info(getName() + "started");
+		LOGGER.info(getName() + " started");
 	}
 
 	@Override
@@ -182,7 +185,7 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 
 		consumerConnector.shutdown();
 
-		sourcers.shutdown();
+		sourcers.shutdownNow();
 
 		while (!sourcers.isTerminated()) {
 			try {
