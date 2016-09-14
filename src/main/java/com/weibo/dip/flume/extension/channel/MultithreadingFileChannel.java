@@ -75,7 +75,7 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 		for (int index = 0; index < channels; index++) {
 			PublicTransactionFileChannel fileChannel = new PublicTransactionFileChannel();
 
-			fileChannel.setName("EnhancedFileChannel_" + index);
+			fileChannel.setName(getName() + "_filechannel_" + index);
 
 			Context ctx = new Context();
 
