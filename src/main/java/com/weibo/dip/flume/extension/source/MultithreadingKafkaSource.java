@@ -68,7 +68,8 @@ public class MultithreadingKafkaSource extends AbstractSource implements EventDr
 		topics = StringUtils.join(topicNames, "|");
 		LOGGER.info("topics: {}", topics);
 
-		Preconditions.checkState(StringUtils.isNotEmpty(topics), "topics's value must not be empty");
+		// Preconditions.checkState(StringUtils.isNotEmpty(topics), "topics's
+		// value must not be empty");
 
 		threads = context.getInteger("threads", 1);
 		LOGGER.info("threads: {}", threads);
