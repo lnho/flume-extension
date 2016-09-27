@@ -27,6 +27,8 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MultithreadingFileChannel.class);
 
+	private Context context;
+
 	private int channels;
 
 	private String checkpointDirStr;
@@ -37,6 +39,8 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	@Override
 	public void configure(Context context) {
+		this.context = context;
+
 		channels = context.getInteger("channels");
 		LOGGER.info("channels: {}", channels);
 
@@ -77,7 +81,7 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 			fileChannel.setName(getName() + "_filechannel_" + index);
 
-			Context ctx = new Context();
+			Context ctx = new Context(context.getParameters());
 
 			ctx.put(FileChannelConfiguration.CHECKPOINT_DIR,
 					new File(checkpointDir, String.valueOf(index)).getAbsolutePath());
