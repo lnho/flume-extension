@@ -151,6 +151,8 @@ public class ScribeClientMain {
 				}
 
 				flush(buffer);
+
+				LOGGER.info("ScribeLogger" + Thread.currentThread().getName() + " stoped");
 			} catch (Exception e) {
 				LOGGER.error("ScribeLogger" + Thread.currentThread().getName() + " log error: "
 						+ ExceptionUtils.getFullStackTrace(e));
