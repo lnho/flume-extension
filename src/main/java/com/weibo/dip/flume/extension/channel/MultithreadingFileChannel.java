@@ -37,6 +37,46 @@ public class MultithreadingFileChannel extends BasicChannelSemantics {
 
 	private List<PublicTransactionFileChannel> fileChannels = null;
 
+	public Context getContext() {
+		return context;
+	}
+
+	public void setContext(Context context) {
+		this.context = context;
+	}
+
+	public int getChannels() {
+		return channels;
+	}
+
+	public void setChannels(int channels) {
+		this.channels = channels;
+	}
+
+	public String getCheckpointDirStr() {
+		return checkpointDirStr;
+	}
+
+	public void setCheckpointDirStr(String checkpointDirStr) {
+		this.checkpointDirStr = checkpointDirStr;
+	}
+
+	public String getDataDirStr() {
+		return dataDirStr;
+	}
+
+	public void setDataDirStr(String dataDirStr) {
+		this.dataDirStr = dataDirStr;
+	}
+
+	public List<PublicTransactionFileChannel> getFileChannels() {
+		return fileChannels;
+	}
+
+	public void setFileChannels(List<PublicTransactionFileChannel> fileChannels) {
+		this.fileChannels = fileChannels;
+	}
+
 	@Override
 	public void configure(Context context) {
 		this.context = context;
