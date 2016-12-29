@@ -68,7 +68,7 @@ public class OpenAPIOPConsumerMain {
 
 		String topic = "app_dipsinacomkafka12345_wwwanalyzetest";
 
-		int threads = 1;
+		int threads = 5;
 
 		Properties properties = new Properties();
 
