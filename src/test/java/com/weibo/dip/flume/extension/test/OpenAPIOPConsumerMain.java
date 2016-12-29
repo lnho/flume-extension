@@ -66,7 +66,7 @@ public class OpenAPIOPConsumerMain {
 	public static void main(String[] args) {
 		String zkConnect = "first.zookeeper.dip.weibo.com:2181,second.zookeeper.dip.weibo.com:2181,third.zookeeper.dip.weibo.com:2181/kafka/k1001";
 
-		String topic = "app_dipsinacomkafka12345_wwwanalyzetest";
+		String topic = "openapi_op";
 
 		int threads = 12;
 
