@@ -70,7 +70,7 @@ public class OpenAPIOPScribeClientMain {
 
 		private int port = 1467;
 
-		private String category = "app_dipsinacomkafka12345_wwwanalyzetest";
+		private String category = "app_dipsinacomkafka12345_hadooplog";
 
 		private TTransport transport = null;
 

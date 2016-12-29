@@ -4,6 +4,7 @@
 package com.weibo.dip.flume.extension.test;
 
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,18 +46,16 @@ public class OpenAPIOPConsumerMain {
 				if (messageAndMetadata != null) {
 					String line = new String(messageAndMetadata.message());
 
-					// long logTime =
-					// Long.valueOf(line.substring(line.lastIndexOf("_") + 1));
-					//
-					// long now = System.currentTimeMillis();
-					//
-					// long delay = now - logTime;
-					//
-					// if (delay > 60000) {
-					// System.out.println(Thread.currentThread().getName() +
-					// "delay["
-					// + dateFormat.format(new Date(now)) + "]: " + delay);
-					// }
+					long logTime = Long.valueOf(line.substring(line.lastIndexOf("_") + 1));
+
+					long now = System.currentTimeMillis();
+
+					long delay = now - logTime;
+
+					if (delay > 60000) {
+						System.out.println(Thread.currentThread().getName() + "delay["
+								+ dateFormat.format(new Date(now)) + "]: " + delay);
+					}
 				}
 			}
 		}
@@ -66,7 +65,7 @@ public class OpenAPIOPConsumerMain {
 	public static void main(String[] args) {
 		String zkConnect = "first.zookeeper.dip.weibo.com:2181,second.zookeeper.dip.weibo.com:2181,third.zookeeper.dip.weibo.com:2181/kafka/k1001";
 
-		String topic = "openapi_op";
+		String topic = "app_dipsinacomkafka12345_hadooplog";
 
 		int threads = 12;
 
