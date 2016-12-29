@@ -3,6 +3,8 @@
  */
 package com.weibo.dip.flume.extension.test;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,9 +12,6 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import kafka.consumer.Consumer;
 import kafka.consumer.ConsumerConfig;
@@ -27,9 +26,9 @@ import kafka.message.MessageAndMetadata;
  */
 public class OpenAPIOPConsumerMain {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(OpenAPIOPConsumerMain.class);
-
 	private static class KafkaConsumer implements Runnable {
+
+		private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
 		private KafkaStream<byte[], byte[]> stream;
 
@@ -45,7 +44,19 @@ public class OpenAPIOPConsumerMain {
 				MessageAndMetadata<byte[], byte[]> messageAndMetadata = iterator.next();
 
 				if (messageAndMetadata != null) {
-					LOGGER.info("length: " + new String(messageAndMetadata.message()).length());
+					String line = new String(messageAndMetadata.message());
+
+					String[] words = line.split("_");
+
+					long logTime = Long.valueOf(words[words.length - 1]);
+
+					long now = System.currentTimeMillis();
+
+					long delay = now - logTime;
+
+					if (delay > 60000) {
+						System.out.println("delay[" + dateFormat.format(new Date(now)) + "]: " + delay);
+					}
 				}
 			}
 		}
@@ -55,7 +66,7 @@ public class OpenAPIOPConsumerMain {
 	public static void main(String[] args) {
 		String zkConnect = "first.zookeeper.dip.weibo.com:2181,second.zookeeper.dip.weibo.com:2181,third.zookeeper.dip.weibo.com:2181/kafka/k1001";
 
-		String topic = "openapi_op";
+		String topic = "app_dipsinacomkafka12345_wwwanalyzetest";
 
 		int threads = 1;
 

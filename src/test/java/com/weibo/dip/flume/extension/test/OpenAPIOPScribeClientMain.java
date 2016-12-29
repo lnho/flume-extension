@@ -18,7 +18,6 @@ import org.apache.commons.lang.CharEncoding;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.flume.Context;
 import org.apache.flume.event.EventBuilder;
-import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -81,13 +80,15 @@ public class OpenAPIOPScribeClientMain {
 			this.host = host;
 		}
 
-		private void flush(List<LogEntry> buffer) throws TException {
+		private void flush(List<LogEntry> buffer) throws Exception {
 			if (CollectionUtils.isNotEmpty(buffer)) {
 				client.Log(buffer);
 
 				COUNTING.addAndGet(buffer.size());
 
 				buffer.clear();
+
+				Thread.sleep(1000);
 			}
 		}
 
