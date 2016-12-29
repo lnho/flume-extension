@@ -46,16 +46,15 @@ public class OpenAPIOPConsumerMain {
 				if (messageAndMetadata != null) {
 					String line = new String(messageAndMetadata.message());
 
-					String[] words = line.split("_");
-
-					long logTime = Long.valueOf(words[words.length - 1]);
+					long logTime = Long.valueOf(line.substring(line.lastIndexOf("_") + 1));
 
 					long now = System.currentTimeMillis();
 
 					long delay = now - logTime;
 
 					if (delay > 60000) {
-						System.out.println("delay[" + dateFormat.format(new Date(now)) + "]: " + delay);
+						System.out.println(Thread.currentThread().getName() + "delay["
+								+ dateFormat.format(new Date(now)) + "]: " + delay);
 					}
 				}
 			}
@@ -68,7 +67,7 @@ public class OpenAPIOPConsumerMain {
 
 		String topic = "app_dipsinacomkafka12345_wwwanalyzetest";
 
-		int threads = 5;
+		int threads = 12;
 
 		Properties properties = new Properties();
 
