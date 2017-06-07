@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import kafka.common.FailedToSendMessageException;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -142,7 +143,15 @@ public class MultithreadingKafkaSink extends AbstractSink implements Configurabl
 
 						// send batch
 						if (CollectionUtils.isNotEmpty(messageList)) {
-							producer.send(messageList);
+							try {
+								producer.send(messageList);
+							} catch (Exception e) {
+								if (e instanceof FailedToSendMessageException) {
+									LOGGER.warn("failed to send message to kafka: " + e.getMessage());
+								} else {
+									throw e;
+								}
+							}
 						}
 
 						transaction.commit();
