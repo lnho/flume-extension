@@ -110,7 +110,7 @@ public class ScribeToKafkaMain {
 
 		monitor.start();
 
-		String kafkaServers = "d013004044.hadoop.dip.weibo.com:9092";
+		String kafkaServers = "first.kafka.dip.weibo.com:9092,second.kafka.dip.weibo.com:9092,third.kafka.dip.weibo.com:9092,fourth.kafka.dip.weibo.com:9092,fifth.kafka.dip.weibo.com:9092";
 
 		Map<String, Object> kafkaServerConfig = new HashMap<>();
 
