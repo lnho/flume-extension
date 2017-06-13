@@ -97,9 +97,10 @@ public class ScribeToKafkaMain {
 			} catch (Exception e) {
 				LOGGER.error("scribe receiver send to kafka error: " + ExceptionUtils.getFullStackTrace(e));
 
-				return ResultCode.TRY_LATER;
+				return ResultCode.OK;
 			}
 
+			// return ResultCode.TRY_LATER;
 		}
 	}
 
