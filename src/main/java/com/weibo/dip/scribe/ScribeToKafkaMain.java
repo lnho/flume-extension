@@ -123,7 +123,7 @@ public class ScribeToKafkaMain {
 		Producer<String, String> producer = new KafkaProducer<>(kafkaServerConfig);
 
 		int scribeServerPort = 1467;
-		int scribeServerWorkers = 1;
+		int scribeServerWorkers = 5;
 		int scribeServerMaxReadBufferBytes = 134217728;
 
 		Scribe.Processor<Receiver> processor = new Scribe.Processor<Receiver>(new Receiver(producer, monitor));
